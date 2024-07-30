@@ -1,0 +1,221 @@
+---
+title: "Transducer Data Merge"
+author: "Cameron Tenner"
+date: '2022-11-01'
+output: html_document
+---
+This script serves to take new transducer data, append it to the existing full set of data, and save it as the new full set of data
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(scales)
+library(janitor)
+library(lubridate)
+library(plotly)
+```
+
+# Code section to fix my massive de-duplication mistake (01/12/2024) Not meant to be run again, but keeping it here for documentation purposes
+```{r eval=FALSE, include=FALSE}
+# Argonaut
+argonaut_newest <- read_csv("data-raw/compensated_data/2023.11.13_BaroMerge_Data/Argonaut_Append_2023-11-13_09-59-48-256-BaroMerge.csv", skip = 89) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Argonaut Rd")
+
+argonaut_older <- read_csv("data-raw/compensated_data/2022.02.02_BaroMerge_Data/Argonaut_Append_2022-02-02_11-36-37-840-BaroMerge.csv", skip = 82) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Argonaut Rd")
+
+argonaut_full <- bind_rows(argonaut_newest, argonaut_older) %>% 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+  select(-temperature_c) %>% 
+  distinct(datetime, .keep_all = T) #This is going to drop 1 hour of observations every November when DSL ends. There are ways to fix this but I don't have enough time right now, and it's not worth saving 4 observations out of 400k
+
+# Soda Bay 
+sodabay_newest <- read_csv("data-raw/compensated_data/2023.11.13_BaroMerge_Data/Soda Bay_Append_2023-11-13_09-43-19-061-BaroMerge.csv", skip = 92) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Soda Bay Rd")
+
+sodabay_older <- read_csv("data-raw/compensated_data/2022.05.03_BaroMerge_Data/Soda Bay_Append_2022-05-03_08-36-53-580-BaroMerge.csv", skip = 86) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Soda Bay Rd")
+
+sodabay_full <- bind_rows(sodabay_newest, sodabay_older) %>% 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+  select(-temperature_c) %>% 
+  distinct(datetime, .keep_all = T)
+
+# Bell Hill
+bellhill_newest <- read_csv("data-raw/compensated_data/2023.11.13_BaroMerge_Data/Bell Hill_Append_2023-11-13_12-04-52-383-BaroMerge.csv", skip = 111) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Bell Hill Rd")
+
+bellhill_older <- read_csv("data-raw/compensated_data/2023.07.13_BaroMerge_Data/Bell Hill_Append_2023-07-13_10-40-43-837-BaroMerge.csv", skip = 105) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Bell Hill Rd")
+
+bellhill_oldest <- read_csv("data-raw/old/Bell Hill_2019-12-03_14-57-48-016-BaroMerge.csv", skip = 75) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Bell Hill Rd")
+
+bellhill_full <- bind_rows(bellhill_newest, bellhill_older, bellhill_oldest) %>% 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+  select(-temperature_c) %>% 
+  distinct(datetime, .keep_all = T)
+
+# Adobe Reservoir
+adobe_res_full <- read_csv("data-raw/compensated_data/2023.11.13_BaroMerge_Data/Adobe Reservoir Outlet_Append_2023-11-13_11-14-32-956-BaroMerge.csv", skip = 74) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Adobe Reservoir")
+
+# Highland Springs Reservoir
+highlandsprings_res_full <- read_csv("data-raw/compensated_data/2023.11.13_BaroMerge_Data/Highland Springs Outlet_Append_2023-11-13_10-48-24-150-BaroMerge.csv", skip = 75) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Highland Springs Reservoir")
+
+all_full <- bind_rows(argonaut_full, bellhill_full, sodabay_full, adobe_res_full, highlandsprings_res_full) %>% 
+  mutate(name = factor(name, levels = c("Argonaut Rd", "Bell Hill Rd", "Soda Bay Rd", "Adobe Reservoir", "Highland Springs Reservoir")))
+```
+
+Now create a figure to confirm this all worked
+```{r eval=FALSE, include=FALSE}
+g_all <- ggplot(data = all_full, aes(x=datetime, y=depth_ft, color=name)) +     
+  geom_line() + 
+  labs(color = "Transducer Location", x="Datetime", y="Water Depth (ft)")
+ggplotly(g_all)
+```
+
+Yay! It worked! No crazy oscillation artifacts when storms hit! 
+
+Let's save this new data as the defaults in the cleaned data folder. This will unfortunately change the timezone of the datetime variable to UTC. use "with_tz" to shift timezone back to America/Los_Angeles when reading these csv's
+```{r eval=FALSE, include=FALSE}
+yyyymmdd <- format(Sys.Date(), "%Y%m%d")
+
+write_csv(argonaut_full, paste0("data/argonaut_", yyyymmdd,".csv"))
+
+write_csv(bellhill_full, paste0("data/bellhill_", yyyymmdd,".csv"))
+
+write_csv(sodabay_full, paste0("data/sodabay_", yyyymmdd,".csv"))
+
+write_csv(adobe_res_full, paste0("data/adobe_res_", yyyymmdd, ".csv"))
+
+write_csv(highlandsprings_res_full, paste0("data/highlandsprings_res_", yyyymmdd, ".csv"))
+
+write_csv(all_full, paste0("data/adobe_transducers_combined_", yyyymmdd,".csv"))
+```
+
+
+# Code for updating dataset in the future
+Before running this chunk:
+- Update file paths with correct dates
+- Ensure the "skip" number is correct by opening the new data in excel and counting how many junk/meta data columns precede actual data set
+- Check what form the date is in (12 v 24 hrs) to decide which date processing function to use (mdy_hms v mdy_hm)
+```{r}
+yyyymmdd <- format(Sys.Date(), "%Y%m%d")
+
+#Argonaut 
+argonaut_existing <- read_csv("data/argonaut_20240126.csv") %>% with_tz("America/Los_Angeles")
+
+argonaut_new <- read_csv("data-raw/compensated_data/2024.02.13_BaroMerge_Data/Argonaut_2024-02-09_11-07-40-826-BaroMerge.csv", skip = 90) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Argonaut Rd") %>% 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+  select(-temperature_c) 
+
+argonaut_updated <- bind_rows(argonaut_existing, argonaut_new) %>% distinct(datetime, .keep_all = T) #This is going to drop 1 hour of observations every November when DSL ends. There are ways to fix this but I don't have enough time right now, and it's not worth saving a handful of observations out of hundreds of thousands. Four NA values a year is okay for now. 
+
+#Bell Hill
+bellhill_existing <- read_csv("data/bellhill_20240126.csv") %>% with_tz("America/Los_Angeles")
+
+bellhill_new <- read_csv("data-raw/compensated_data/2024.02.13_BaroMerge_Data/Bell Hill_2024-02-09_11-40-58-126-BaroMerge.csv", skip = 112) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Bell Hill Rd") %>% 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+  select(-temperature_c) 
+
+bellhill_updated <- bind_rows(bellhill_existing, bellhill_new) %>% distinct(datetime, .keep_all = T)
+
+#Soda Bay
+sodabay_existing <- read_csv("data/sodabay_20240126.csv") %>% with_tz("America/Los_Angeles")
+
+sodabay_new <- read_csv("data-raw/compensated_data/2024.02.13_BaroMerge_Data/Soda Bay_2024-02-09_09-57-02-508-BaroMerge.csv", skip = 93) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Soda Bay Rd") %>% 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+  select(-temperature_c) 
+
+sodabay_updated <- bind_rows(sodabay_existing, sodabay_new) %>% distinct(datetime, .keep_all = T)
+
+#Adobe Reservoir
+adobe_res_existing <- read_csv("data/adobe_res_20240126.csv") %>% with_tz("America/Los_Angeles")
+
+adobe_res_new <- read_csv("data-raw/compensated_data/2024.02.13_BaroMerge_Data/Adobe Reservoir Outlet_2024-02-09_12-16-10-611-BaroMerge.csv", skip = 75) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Adobe Reservoir")
+
+adobe_res_updated <- bind_rows(adobe_res_existing, adobe_res_new) %>% distinct(datetime, .keep_all = T)
+
+#Highland Springs Reservoir 
+highlandsprings_res_existing <- read_csv("data/highlandsprings_res_20240126.csv") %>% with_tz("America/Los_Angeles")
+
+highlandsprings_res_new <- read_csv("data-raw/compensated_data/2024.02.13_BaroMerge_Data/Highland Springs Outlet_2024-02-09_11-27-56-555-BaroMerge.csv", skip = 76) %>% 
+  clean_names() %>% 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
+  select(-c(x7, date_and_time)) %>% 
+  mutate(name = "Highland Springs Reservoir")
+
+highlandsprings_res_updated <- bind_rows(highlandsprings_res_existing, highlandsprings_res_new) %>% distinct(datetime, .keep_all = T)
+
+#All 
+all_updated <- bind_rows(argonaut_updated, bellhill_updated, sodabay_updated, adobe_res_updated, highlandsprings_res_updated) %>% 
+  mutate(name = factor(name, levels = c("Argonaut Rd", "Bell Hill Rd", "Soda Bay Rd", "Adobe Reservoir", "Highland Springs Reservoir")))
+```
+
+
+Next, visualize the data to make sure everything appended and updated correctly. All three transducers should have a record from 12/13/2018 to the date of the most recent data download
+```{r}
+g_all <- ggplot(data = all_updated, aes(x=datetime, y=depth_ft, color=name)) +     
+  geom_line() + 
+  labs(color = "Transducer Location", x="Datetime", y="Water Depth (ft)")
+ggplotly(g_all)
+```
+
+Once you've confirmed the data has been correctly updated, run this chunk to save. After this is done, go into the folder and move the older version of the full data to the "old" subfolder.This will unfortunately change the timezone of the datetime variable to UTC. use "with_tz" to shift timezone back to America/Los_Angeles when reading these csv's
+```{r}
+write_csv(argonaut_updated, paste0("data/argonaut_", yyyymmdd,".csv"))
+
+write_csv(bellhill_updated, paste0("data/bellhill_", yyyymmdd,".csv"))
+
+write_csv(sodabay_updated, paste0("data/sodabay_", yyyymmdd,".csv"))
+
+write_csv(adobe_res_updated, paste0("data/adobe_res_", yyyymmdd, ".csv"))
+
+write_csv(highlandsprings_res_updated, paste0("data/highlandsprings_res_", yyyymmdd, ".csv"))
+
+write_csv(all_updated, paste0("data/adobe_transducers_combined_", yyyymmdd,".csv"))
+```
