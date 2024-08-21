@@ -1,0 +1,86 @@
+---
+title: "Update Trandsducer Data - v2"
+author: "Maddee Rubenson (FlowWest)"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+This script will add new transducer data to the legacy dataset to create a new full dataset of all transducer data to date.  
+
+First read in the data: 
+
+```{r}
+source(here::here("analysis","surface_water", "qc_data.R"))
+```
+
+Combine the newly updated files:
+
+```{r}
+all_updated <- bind_rows(argonaut_updated, bellhill_updated, sodabay_updated, adobe_updated, highland_updated) |> 
+  glimpse()
+```
+Next, visualize the data to make sure everything appended and updated correctly. All three transducers should have a record from 12/13/2018 to the date of the most recent data download.
+
+```{r}
+# TODO: check to make sure this is right - assuming the transducers are soda bay, argonaut, bell hill
+all_updated |> 
+  group_by(name) |>
+  summarise(min_date = min(datetime),
+            max_date = max(datetime)) |> 
+  knitr::kable()
+
+```
+
+
+```{r}
+ggplot(data = all_updated, aes(x = datetime, y = depth_ft, color = name)) +     
+  geom_line() + 
+  labs(color = "Transducer Location", x = "Datetime", y = "Water Depth (ft)") +
+  theme_minimal()
+```
+
+Once you've confirmed the data has been correctly updated, copy the old files into the `backup` folder to ensure we aren't writing over anything. The old data will be copied over with a timestamp of the current day. 
+
+```{r}
+all_existing_files <- list.files(here::here("data", "surface_water"))
+
+backup_folder <- "backup"
+# Create the backup folder if it doesn't exist
+if (!dir.exists(backup_folder)) {
+  dir.create(here::here("data", "surface_water", backup_folder))
+}
+
+# Loop through each file and create a backup
+for (file in all_existing_files) {
+  
+  base_filename <- sub("\\.csv$", "", file)
+  
+  # Copy the original file to the backup folder
+  file.copy(from = here::here("data", "surface_water", paste0(base_filename, "-", Sys.Date(), ".csv")), 
+            to = here::here("data", "surface_water", "backup"))
+}
+
+# Check the backup folder to ensure files are copied
+list.files(here::here("data", "surface_water", backup_folder))
+
+```
+
+Save new files 
+
+```{r}
+
+write_csv(argonaut_updated, here::here("data", "surface_water", paste0('argonaut_updated', ".csv")))
+write_csv(bellhill_updated, here::here("data", "surface_water", paste0('bellhill_updated', ".csv")))
+write_csv(sodabay_updated, here::here("data", "surface_water", paste0('sodabay_updated', ".csv")))
+write_csv(adobe_updated, here::here("data", "surface_water", paste0('adobe_updated', ".csv")))
+write_csv(highland_updated, here::here("data", "surface_water", paste0('highland_updated', ".csv")))
+
+```
+

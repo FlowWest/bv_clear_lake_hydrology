@@ -131,17 +131,18 @@ Before running this chunk:
 yyyymmdd <- format(Sys.Date(), "%Y%m%d")
 
 #Argonaut 
-argonaut_existing <- read_csv("data/argonaut_20240126.csv") %>% with_tz("America/Los_Angeles")
+argonaut_existing <- read_csv(here::here("data", "surface_water",  "argonaut_20240213.csv")) %>% with_tz("America/Los_Angeles")
 
-argonaut_new <- read_csv("data-raw/compensated_data/2024.02.13_BaroMerge_Data/Argonaut_2024-02-09_11-07-40-826-BaroMerge.csv", skip = 90) %>% 
-  clean_names() %>% 
-  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) %>% 
-  select(-c(x7, date_and_time)) %>% 
-  mutate(name = "Argonaut Rd") %>% 
-  mutate(temperature_f = (temperature_c * 9/5) + 32) %>% 
+argonaut_new <- read_csv(here::here("data-raw", "surface_water", "compensated_data", 
+"2024.02.13_BaroMerge_Data", "Argonaut_2024-02-09_11-07-40-826-BaroMerge.csv"), skip = 90) |> 
+  clean_names() |> 
+  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) |> 
+  select(-c(x7, date_and_time)) |> 
+  mutate(name = "Argonaut Rd") |> 
+  mutate(temperature_f = (temperature_c * 9/5) + 32) |> 
   select(-temperature_c) 
 
-argonaut_updated <- bind_rows(argonaut_existing, argonaut_new) %>% distinct(datetime, .keep_all = T) #This is going to drop 1 hour of observations every November when DSL ends. There are ways to fix this but I don't have enough time right now, and it's not worth saving a handful of observations out of hundreds of thousands. Four NA values a year is okay for now. 
+argonaut_updated <- bind_rows(argonaut_existing, argonaut_new)  |>  distinct(datetime, .keep_all = T) #This is going to drop 1 hour of observations every November when DSL ends. There are ways to fix this but I don't have enough time right now, and it's not worth saving a handful of observations out of hundreds of thousands. Four NA values a year is okay for now. 
 
 #Bell Hill
 bellhill_existing <- read_csv("data/bellhill_20240126.csv") %>% with_tz("America/Los_Angeles")
