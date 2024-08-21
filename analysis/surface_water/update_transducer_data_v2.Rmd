@@ -2,7 +2,7 @@
 title: "Update Trandsducer Data - v2"
 author: "Maddee Rubenson (FlowWest)"
 date: "`r Sys.Date()`"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
