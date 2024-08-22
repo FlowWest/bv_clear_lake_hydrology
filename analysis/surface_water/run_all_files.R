@@ -55,11 +55,14 @@ all_files_clean <- all_files |>
   mutate(temperature_f = (temperature_c * 9/5) + 32) |>
   select(-c(x7, x6, date_and_time, temperature_c)) |>
   filter(!is.na(datetime)) |>
+  distinct() |>
   glimpse()
 
 
 all_files_clean |>
   group_by(name) |>
   summarise(min_date = min(datetime),
-            max_date = max(datetime))
+            max_date = max(datetime),
+            n = n())
 # TODO: Adobe doesn't line up with previous table which had min date of 2023-11-01
+# TODO: number of entries is not alligned with the markdown

@@ -1,7 +1,7 @@
 Update Trandsducer Data - v2
 ================
 Maddee Rubenson (FlowWest)
-2024-08-21
+2024-08-22
 
 This script will add new transducer data to the legacy dataset to create
 a new full dataset of all transducer data to date.
@@ -220,17 +220,18 @@ the date of the most recent data download.
 all_updated |> 
   group_by(name) |>
   summarise(min_date = min(datetime),
-            max_date = max(datetime)) |> 
+            max_date = max(datetime),
+            n = n()) |> 
   knitr::kable()
 ```
 
-| name                       | min_date            | max_date            |
-|:---------------------------|:--------------------|:--------------------|
-| Adobe Reservoir            | 2023-11-01 13:00:00 | 2024-02-09 09:30:00 |
-| Argonaut Rd                | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 |
-| Bell Hill Rd               | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 |
-| Highland Springs Reservoir | 2023-05-03 12:00:00 | 2024-02-09 09:30:00 |
-| Soda Bay Rd                | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 |
+| name                       | min_date            | max_date            |      n |
+|:---------------------------|:--------------------|:--------------------|-------:|
+| Adobe Reservoir            | 2023-11-01 13:00:00 | 2024-02-09 09:30:00 |   9587 |
+| Argonaut Rd                | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 | 180847 |
+| Bell Hill Rd               | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 | 180843 |
+| Highland Springs Reservoir | 2023-05-03 12:00:00 | 2024-02-09 09:30:00 |  27063 |
+| Soda Bay Rd                | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 | 180847 |
 
 ``` r
 ggplot(data = all_updated, aes(x = datetime, y = depth_ft, color = name)) +     

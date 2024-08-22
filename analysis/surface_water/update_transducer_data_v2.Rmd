@@ -33,7 +33,8 @@ Next, visualize the data to make sure everything appended and updated correctly.
 all_updated |> 
   group_by(name) |>
   summarise(min_date = min(datetime),
-            max_date = max(datetime)) |> 
+            max_date = max(datetime),
+            n = n()) |> 
   knitr::kable()
 
 ```
