@@ -13,7 +13,6 @@ compensated_folders <- list.files(here::here("data-raw", "surface_water", "compe
 
 all_files <- data.frame()
 for(i in 1:length(compensated_folders)) {
-  print(paste0("first, ", i))
 
   file_list <- list.files(here::here("data-raw", "surface_water", "compensated_data", compensated_folders[i]))
 
@@ -24,7 +23,7 @@ for(i in 1:length(compensated_folders)) {
     file <-  file_list[grep(names[n], file_list, ignore.case = TRUE)]
 
     if(length(file) > 1) {
-      file <- file[2]
+      file <- file[1]
     }
 
     start_row <-
@@ -39,10 +38,18 @@ for(i in 1:length(compensated_folders)) {
              file_name = file) |>
       data_formatting()
 
+
+    if(nrow(new_file) > 0) {
+      new_file <- new_file |>
+        distinct(date_and_time, .keep_all = T)
+    }
+
+
+
     all_files <- bind_rows(new_file, all_files)
 
+
   }
-  print(i)
 }
 
 
@@ -52,11 +59,12 @@ unique(all_files$name)
 all_files_clean <- all_files |>
   mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) |>
   mutate(name = name) |>
-  mutate(temperature_f = (temperature_c * 9/5) + 32) |>
+  mutate(temperature_f = case_when(!is.na(temperature_c) ~ (temperature_c * 9/5) + 32,
+                                     is.na(temperature_c) ~ temperature_f,
+                                     .default = temperature_f)) |>
   select(-c(x7, x6, date_and_time, temperature_c)) |>
   filter(!is.na(datetime)) |>
-  distinct() |>
-  glimpse()
+  distinct(datetime, name, .keep_all = TRUE)
 
 
 all_files_clean |>
