@@ -23,7 +23,7 @@ for(i in 1:length(compensated_folders)) {
     file <-  file_list[grep(names[n], file_list, ignore.case = TRUE)]
 
     if(length(file) > 1) {
-      file <- file[1]
+      file <- file[1] # TODO - flagging here for a potentail issue
     }
 
     start_row <-
@@ -56,21 +56,25 @@ for(i in 1:length(compensated_folders)) {
 # explore and clean up all_files  -----------------------------------------
 unique(all_files$name)
 
-all_files_clean <- all_files |>
-  mutate(datetime = mdy_hms(date_and_time, tz = "America/Los_Angeles")) |>
-  mutate(name = name) |>
+all_surface_water <- all_files |>
+  mutate(datetime = parse_date_time(date_and_time, orders = c("mdy HM", "mdy HMS p"))) |>
   mutate(temperature_f = case_when(!is.na(temperature_c) ~ (temperature_c * 9/5) + 32,
                                      is.na(temperature_c) ~ temperature_f,
                                      .default = temperature_f)) |>
   select(-c(x7, x6, date_and_time, temperature_c)) |>
-  filter(!is.na(datetime)) |>
-  distinct(datetime, name, .keep_all = TRUE)
+  filter(!is.na(datetime)) |> # this removes one observation
+  distinct(datetime, name, .keep_all = TRUE) |> # this removes 766427 observations
+  mutate(name = case_when(name == "Argonaut" ~ "Argonaut Rd",
+                          name == "Adobe" ~ "Adobe Reservoir",
+                          name == "Bell Hill" ~ "Bell Hill Rd",
+                          name == "Highland" ~ "Highland Springs Reservoir",
+                          name == "Soda Bay" ~ "Soda Bay Rd",
+                          .default = as.character(name))) |>
+  glimpse()
 
 
-all_files_clean |>
+all_surface_water |>
   group_by(name) |>
   summarise(min_date = min(datetime),
             max_date = max(datetime),
             n = n())
-# TODO: Adobe doesn't line up with previous table which had min date of 2023-11-01
-# TODO: number of entries is not alligned with the markdown

@@ -1,36 +1,42 @@
 ---
 title: "Update Trandsducer Data - v2"
-author: "Maddee Rubenson (FlowWest)"
+author: "Maddee Wiggins (FlowWest)"
 date: "`r Sys.Date()`"
 output: github_document
 ---
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(plotly)
 
 knitr::opts_chunk$set(echo = TRUE)
 
+palette <- c("#999999", "#E69F00", "#56B4E9", "#F0E442", "#009E73", "#CC79A7")
+
 ```
 
-This script will add new transducer data to the legacy dataset to create a new full dataset of all transducer data to date.  
+## Source Data 
 
-First read in the data: 
+This script will compile all transducer data that is located in the `data-raw/surface_water/compensated_data` folder
 
-```{r}
-source(here::here("analysis","surface_water", "qc_data.R"))
+First, source script:
+
+TODO: note that `seconds` column is not reading in correctly. Check to make sure this is okay.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+source(here::here("analysis","surface_water", "run_all_files.R"))
 ```
 
-Combine the newly updated files:
-
 ```{r}
-all_updated <- bind_rows(argonaut_updated, bellhill_updated, sodabay_updated, adobe_updated, highland_updated) |> 
-  glimpse()
+all_surface_water |> glimpse()
 ```
-Next, visualize the data to make sure everything appended and updated correctly. All three transducers should have a record from 12/13/2018 to the date of the most recent data download.
+
+## Visualize and Explore Data 
+
+Next, visualize the data to make sure everything appended and updated correctly.
 
 ```{r}
-# TODO: check to make sure this is right - assuming the transducers are soda bay, argonaut, bell hill
-all_updated |> 
+all_surface_water |> 
   group_by(name) |>
   summarise(min_date = min(datetime),
             max_date = max(datetime),
@@ -39,49 +45,43 @@ all_updated |>
 
 ```
 
+### Water Depth
 
-```{r}
-ggplot(data = all_updated, aes(x = datetime, y = depth_ft, color = name)) +     
+```{r fig.height=9, fig.width=11}
+ggplot(data = all_surface_water, aes(x = datetime, y = depth_ft, color = name)) +     
   geom_line() + 
+  scale_color_manual(values = palette) +
   labs(color = "Transducer Location", x = "Datetime", y = "Water Depth (ft)") +
+  theme_minimal() 
+
+```
+
+### Pressure
+
+```{r fig.height=9, fig.width=11}
+ggplot(data = all_surface_water, aes(x = datetime, y = pressure_psi, color = name)) +     
+  geom_line() + 
+  scale_color_manual(values = palette) +
+  labs(color = "Transducer Location", x = "Datetime", y = "Pressure (psi)") +
   theme_minimal()
 ```
 
-Once you've confirmed the data has been correctly updated, copy the old files into the `backup` folder to ensure we aren't writing over anything. The old data will be copied over with a timestamp of the current day. 
+### Temperature 
 
-```{r}
-all_existing_files <- list.files(here::here("data", "surface_water"))
-
-backup_folder <- "backup"
-# Create the backup folder if it doesn't exist
-if (!dir.exists(backup_folder)) {
-  dir.create(here::here("data", "surface_water", backup_folder))
-}
-
-# Loop through each file and create a backup
-for (file in all_existing_files) {
-  
-  base_filename <- sub("\\.csv$", "", file)
-  
-  # Copy the original file to the backup folder
-  file.copy(from = here::here("data", "surface_water", paste0(base_filename, "-", Sys.Date(), ".csv")), 
-            to = here::here("data", "surface_water", "backup"))
-}
-
-# Check the backup folder to ensure files are copied
-list.files(here::here("data", "surface_water", backup_folder))
+```{r fig.height=9, fig.width=11}
+ggplot(data = all_surface_water, aes(x = datetime, y = temperature_f, color = name)) +     
+  geom_line() + 
+  scale_color_manual(values = palette) +
+  labs(color = "Transducer Location", x = "Datetime", y = "Temperature (f)") +
+  theme_minimal()
 
 ```
 
-Save new files 
+## Save aggregated data 
+
+Now save an Rdata file of aggregated surface water data in the `data/surface_water` folder
 
 ```{r}
-
-write_csv(argonaut_updated, here::here("data", "surface_water", paste0('argonaut_updated', ".csv")))
-write_csv(bellhill_updated, here::here("data", "surface_water", paste0('bellhill_updated', ".csv")))
-write_csv(sodabay_updated, here::here("data", "surface_water", paste0('sodabay_updated', ".csv")))
-write_csv(adobe_updated, here::here("data", "surface_water", paste0('adobe_updated', ".csv")))
-write_csv(highland_updated, here::here("data", "surface_water", paste0('highland_updated', ".csv")))
+all_surface_water |> saveRDS(here::here("data", "surface_water", "surface_water_data_aggregated.RDS"))
 
 ```
-
