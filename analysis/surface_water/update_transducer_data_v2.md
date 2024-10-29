@@ -1,7 +1,7 @@
 Update Trandsducer Data - v2
 ================
 Maddee Wiggins (FlowWest)
-2024-10-23
+2024-10-29
 
 ## Source Data
 
@@ -17,7 +17,7 @@ make sure this is okay.
 source(here::here("analysis","surface_water", "run_all_files.R"))
 ```
 
-    ## Rows: 596,663
+    ## Rows: 697,488
     ## Columns: 8
     ## $ seconds                 <dbl> 0, 900, 1800, 2700, 3600, 4500, 5400, 6300, 72…
     ## $ pressure_psi            <dbl> -0.031, -0.035, -0.026, -0.031, -0.039, -0.028…
@@ -25,14 +25,14 @@ source(here::here("analysis","surface_water", "run_all_files.R"))
     ## $ depth_ft                <dbl> -0.072, -0.082, -0.060, -0.073, -0.091, -0.065…
     ## $ barometric_pressure_psi <dbl> 14.114, 14.114, 14.108, 14.108, 14.112, 14.099…
     ## $ name                    <chr> "Adobe Reservoir", "Adobe Reservoir", "Adobe R…
-    ## $ file_name               <chr> "Adobe Reservoir Outlet_2024-02-09_12-16-10-61…
+    ## $ file_name               <chr> "Adobe Reservoir Outlet_Append_2024-09-06_12-3…
     ## $ datetime                <dttm> 2023-11-01 13:00:00, 2023-11-01 13:15:00, 202…
 
 ``` r
 all_surface_water |> glimpse()
 ```
 
-    ## Rows: 596,663
+    ## Rows: 697,488
     ## Columns: 8
     ## $ seconds                 <dbl> 0, 900, 1800, 2700, 3600, 4500, 5400, 6300, 72…
     ## $ pressure_psi            <dbl> -0.031, -0.035, -0.026, -0.031, -0.039, -0.028…
@@ -40,7 +40,7 @@ all_surface_water |> glimpse()
     ## $ depth_ft                <dbl> -0.072, -0.082, -0.060, -0.073, -0.091, -0.065…
     ## $ barometric_pressure_psi <dbl> 14.114, 14.114, 14.108, 14.108, 14.112, 14.099…
     ## $ name                    <chr> "Adobe Reservoir", "Adobe Reservoir", "Adobe R…
-    ## $ file_name               <chr> "Adobe Reservoir Outlet_2024-02-09_12-16-10-61…
+    ## $ file_name               <chr> "Adobe Reservoir Outlet_Append_2024-09-06_12-3…
     ## $ datetime                <dttm> 2023-11-01 13:00:00, 2023-11-01 13:15:00, 202…
 
 ## Visualize and Explore Data
@@ -59,11 +59,11 @@ all_surface_water |>
 
 | name                       | min_date            | max_date            |      n |
 |:---------------------------|:--------------------|:--------------------|-------:|
-| Adobe Reservoir            | 2023-05-03 12:00:00 | 2024-02-09 09:30:00 |  27063 |
-| Argonaut Rd                | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 | 180847 |
-| Bell Hill Rd               | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 | 180843 |
-| Highland Springs Reservoir | 2023-05-03 12:00:00 | 2024-02-09 09:30:00 |  27063 |
-| Soda Bay Rd                | 2018-12-13 09:00:00 | 2024-02-09 09:30:00 | 180847 |
+| Adobe Reservoir            | 2023-05-03 12:00:00 | 2024-09-06 11:45:00 |  47228 |
+| Argonaut Rd                | 2018-12-13 09:00:00 | 2024-09-06 11:45:00 | 201012 |
+| Bell Hill Rd               | 2018-12-13 09:00:00 | 2024-09-06 11:45:00 | 201008 |
+| Highland Springs Reservoir | 2023-05-03 12:00:00 | 2024-09-06 11:45:00 |  47228 |
+| Soda Bay Rd                | 2018-12-13 09:00:00 | 2024-09-06 11:45:00 | 201012 |
 
 ### Water Depth
 

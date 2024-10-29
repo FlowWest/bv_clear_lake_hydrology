@@ -30,29 +30,36 @@ knitr::opts_chunk$set(
   message = FALSE)
 ```
 
+```{r include=FALSE}
+surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
+
+# unsure if this is for GW or SW
+stage_flow <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'Flow_vs_Depth_Table.xlsx'), sheet = "Data") 
+```
+
 # Surface Water Data {.tabset}
 
 ## BVR EPA Data
 
 ### Description of Data
 
-The surface water data is periodically collected by Big Valley Rancheria using Rugged Troll 200. The data have been corrected using barometric pressure measurments.
+The surface water data is periodically collected by Big Valley Rancheria using Rugged Troll 200. The data have been corrected using barometric pressure measurements.
 
 **Timeframe:**
 
-Surface Water Data: 2018-12-13 to 2023-04-20.
+Surface Water Data: `r min(surface_water$datetime)` - `r max(surface_water$datetime)`
 
 **Completeness of record throughout timeframe:** Complete
 
 **Sampling Location**:
 
-Surface Water Data: Pressure transducers are located in the creekbed at Bell Hill Rd, Argonaut Rd, and Soda Bay Rd.
+Surface Water Data: Pressure transducers are located in the creek bed at Bell Hill Rd, Argonaut Rd, and Soda Bay Rd. #TODO: add other sites
 
 **Data Contact:**
 
 ### Access BVR EPA Data:
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
 
 # unsure if this is for GW or SW
