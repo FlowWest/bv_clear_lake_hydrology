@@ -30,7 +30,7 @@ knitr::opts_chunk$set(
   message = FALSE)
 ```
 
-# Surface Water Data and Groundwater Data: {.tabset}
+# Surface Water Data and Groundwater Data:  
 
 ```{r include=FALSE}
 surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
@@ -95,7 +95,7 @@ SW_kelsey_kelseyville_USGS <- read_csv(here::here('data-raw', 'surface_water', '
 
 # Data Processing and Visualization:
 
-## Surface Water Data: {.tabset}
+## Surface Water Data:  
 
 ### Raw Data
 
@@ -203,7 +203,6 @@ plot_sw_bellhill
 ```
 
 From this we see that the datum shift makes our data match with Water Board's data at the same location for most of the winter. 
-
 However, they begin to diverge in early April of 2023. 
 
 To account for this, going to remove data between 04/05/2023 and 06/10/2023 for Bell Hill Gage. 
@@ -918,7 +917,7 @@ p_reservoir_data
 knitr::knit_exit()
 ```
 
-## Ground Water Data: {.tabset}
+## Ground Water Data:  
 
 ### Raw Data
 
@@ -1595,7 +1594,7 @@ p_TypeIIINoise
 
 # Integrative Analysis
 
-## Bell Hill: {.tabset}
+## Bell Hill:  
 
 ### GW vs SW
 ```{r, echo=FALSE}
@@ -1659,7 +1658,7 @@ plot_gw_comp_bellhill
 ```
 
 
-## Soda Bay: {.tabset}
+## Soda Bay:  
 
 ### GW v SW
 ```{r, echo=FALSE}
@@ -1735,7 +1734,7 @@ plot_gw_comp_sodabay
 
 At first glance, trends line up pretty well 
 
-## Kelsey Creek Well 04: {.tabset}
+## Kelsey Creek Well 04:  
 ### GW v SW
 ```{r}
 surf_ground_kelsey <- ggplot(SW_kelsey_kelseyville_USGS, aes(x=Datetime, y=WSE, color = "Surface Water - USGS Gage 11449500")) +
