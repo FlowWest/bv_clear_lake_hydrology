@@ -1,0 +1,40 @@
+---
+title: "Update Groundwater Data"
+author: "Maddee Wiggins and Cameron Tenner"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Source all the groundwater files in `data-raw/groundwater`
+
+```{r}
+source(here::here('analysis', 'groundwater', 'run_groundwater_files.R'))
+```
+
+Visualize to check data is complete. Wells 02, 03, and 04 should have a record from 09/03/2021 to present. Well 01 should have a record from 02/02/2022 to present. Well 05 should have a record from 01/12/2022 to present.
+
+```{r}
+groundwater_updated |> 
+  group_by(well_id) |> 
+  summarise(min_date = min(datetime),
+            max_date = max(datetime)) |> 
+  knitr::kable()
+```
+
+```{r}
+ggplot(groundwater_updated, aes(x = datetime, y = depth_to_gw, color = well_id)) + 
+  geom_line(alpha = 0.5) +
+  theme_minimal()
+```
+
+Save output to `data/groundwater`
+
+```{r}
+groundwater_updated |> write_rds(here::here("data", "groundwater", "groundwater_merged.rds"))
+```
