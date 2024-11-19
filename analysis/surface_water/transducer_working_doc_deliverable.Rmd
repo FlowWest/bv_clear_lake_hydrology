@@ -24,6 +24,8 @@ library(leaflet)
 library(htmltools)
 library(dataRetrieval)
 library(patchwork)
+#remotes::install_github("flowwest/CDECRetrieve")
+library(CDECRetrieve)
 
 knitr::opts_chunk$set(
   warning = FALSE,
@@ -83,13 +85,34 @@ clearlake_level <- readNWISdv("11450000", "00065","2007-10-01", Sys.Date()) |>
          Date = as.POSIXct(Date, tz = "America/Los_Angeles"))
 
 SW_bellhill_WB <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'water_board', 'PressureTransducer_and_Flow_Data_20230728.xlsx'), 
-                                    sheet = "AC4-2023 Data", skip=8)  |>
+                                    sheet = "AC4-2023 Data", skip = 8)  |>
   mutate(Date = as.POSIXct(`Date Time (UTC)`),
          Date = with_tz(Date, "America/Los_Angeles"))
 
 SW_kelsey_kelseyville_USGS <- read_csv(here::here('data-raw', 'surface_water', 'kelsey_kelseyville_usgs_stage_20240201.csv'))  |>
   mutate(Datetime = as.POSIXct(Datetime, format = "%m/%d/%Y %H:%M", tz = "America/Los_Angeles"),
          WSE = Stage + 1475.44)
+
+# ACF ADOBE CRK NR FINLEY AT SODA BAY RD ----------------
+# https://cdec.water.ca.gov/dynamicapp/staMeta?station_id=ACF
+# TODO: what is the difference between "river stage" and "river stage aux."?
+# TODO: Cameron thinks these values are off. Should explore further. 
+acf_river_stage_ft <- cdec_query(station = 'ACF', sensor_num = '1', 
+                                 dur_code = 'E', start_date = '2024-01-19',
+                                 end_date = '2024-09-06')
+
+acf_river_stage_ft_aux <- cdec_query(station = 'ACF', sensor_num = '204', 
+                                     dur_code = 'E', start_date = '2024-01-19',
+                                     end_date = '2024-09-06')
+
+
+acf_river_stage_ft |> 
+  ggplot() +
+  geom_line(aes(x = datetime, y = parameter_value))
+
+acf_river_stage_ft_aux |> 
+  ggplot() +
+  geom_line(aes(x = datetime, y = parameter_value))
 ```
 
 
@@ -139,7 +162,7 @@ surface_water <- surface_water |>
                datetime < as.POSIXct("2023-06-10 15:00:00", tz="America/Los_Angeles") ~ 
                depth_ft - 1.9,
              T ~ depth_ft
-  ))
+           ))
 ```
 
 ```{r, echo = FALSE}
@@ -221,8 +244,8 @@ surface_water <- surface_water |>
                datetime >= as.POSIXct("2023-09-01 08:00:00", tz="America/Los_Angeles") &
                datetime < as.POSIXct("2023-09-27 09:00:00", tz="America/Los_Angeles") ~ 
                0,
-    T ~ depth_adjust
-  ))
+             T ~ depth_adjust
+           ))
 ```
 
 ```{r, echo = FALSE}
@@ -302,14 +325,14 @@ Now we assign all values less than or equal to the maximum observed depth among 
 ```{r}
 surface_water <- surface_water |> 
   mutate(
-  depth_adjust03 = case_when(
-    name == "Bell Hill Rd" & depth_adjust03 <= 0.0759 ~ 0,
-    name == "Argonaut Rd" & depth_adjust03 < 0.0768 ~ 0,
-    name == "Soda Bay Rd" & depth_adjust03 <= 0.0753 ~ 0,
-    name == "Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
-    name == "Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
-    T ~ depth_adjust03
-  )) 
+    depth_adjust03 = case_when(
+      name == "Bell Hill Rd" & depth_adjust03 <= 0.0759 ~ 0,
+      name == "Argonaut Rd" & depth_adjust03 < 0.0768 ~ 0,
+      name == "Soda Bay Rd" & depth_adjust03 <= 0.0753 ~ 0,
+      name == "Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
+      name == "Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
+      T ~ depth_adjust03
+    )) 
 ```
 
 ```{r}
@@ -343,8 +366,8 @@ surface_water <- surface_water |>
                datetime > as.POSIXct("2023-08-16 00:00:00", tz="America/Los_Angeles") &
                datetime < as.POSIXct("2023-12-19 09:15:00", tz="America/Los_Angeles") ~ 
                0,
-    T ~ depth_adjust03
-  ))
+             T ~ depth_adjust03
+           ))
 ```
 
 ```{r, echo = FALSE}
@@ -1211,18 +1234,18 @@ well04 <- well04 |>
         is.na(depth_adjusted02),
         depth_2dMM,
         depth_adjusted02)
-    ) #|> 
+  ) #|> 
   #select(-depth_8hMM)
 ```
 
 ```{r}
 ggplotly(plot_well04 <- ggplot(well04, aes(x=datetime, y=depth_adjusted)) +
-  geom_line(color = "#E7298A") + 
-    geom_line(aes(x=datetime, y=depth_adjusted03), color = "chartreuse3") +
-  geom_line(aes(x=datetime, y=depth_adjusted02), color = "blue") +
-  scale_x_datetime(date_labels = "%b '%y",
-                   date_breaks = "2 month") +
-  scale_y_reverse())
+           geom_line(color = "#E7298A") + 
+           geom_line(aes(x=datetime, y=depth_adjusted03), color = "chartreuse3") +
+           geom_line(aes(x=datetime, y=depth_adjusted02), color = "blue") +
+           scale_x_datetime(date_labels = "%b '%y",
+                            date_breaks = "2 month") +
+           scale_y_reverse())
 
 ```
 
@@ -1257,7 +1280,7 @@ p_AdobeGW03_BVR <- ggplot(well01, aes(x=datetime, y = depth_adjusted)) +
     y = "Depth to Groundwater (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1281,7 +1304,7 @@ p_AdobeGW02_BVR <- ggplot(well03, aes(x=datetime, y = depth_adjusted)) +
     y = "Depth to Groundwater (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1305,7 +1328,7 @@ p_AdobeGW01_BVR <- ggplot(well04 |> filter(! is.na(depth_adjusted)), aes(x=datet
     y = "Depth to Groundwater (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1329,7 +1352,7 @@ p_KelseyGW02_BVR <- ggplot(well02 |> filter(! is.na(depth_adjusted)), aes(x=date
     y = "Depth to Groundwater (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1512,7 +1535,7 @@ p_TypeINoise <- ggplot(data = ground_water |> filter(well_id == "001"), aes(x=da
     y = "Depth to Groundwater, Raw (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1544,7 +1567,7 @@ p_TypeIINoise <- ggplot(data = ground_water |> filter(well_id == "004"), aes(x=d
     y = "Depth to Groundwater, Raw (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1576,7 +1599,7 @@ p_TypeIIINoise <- ggplot(data = ground_water |> filter(well_id == "003"), aes(x=
     y = "Depth to Groundwater, Raw (ft)",
     x = "Date"
   )  + 
-    theme_minimal() +
+  theme_minimal() +
   theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
@@ -1667,7 +1690,7 @@ surf_ground_sodabay <- ggplot(SW_WSE |> filter(name == "Soda Bay Rd"), aes(x=dat
   geom_line(data = ground_water_adobe |> filter(well_id == "004"),
             aes(x=datetime, y=gw_elev_7dMA, color = "Groundwater - BV EPA (AdobeGW01_BVR)"),
             size = 1,
-            ) +
+  ) +
   #annotate("rect", xmin = as.POSIXct("2023-01-23 12:00:00"), xmax = as.POSIXct("2023-02-27 07:15:00"), ymin = 1310, ymax = 1336, alpha = 0.2) + 
   #annotate("text", x= as.POSIXct("2023-02-12 12:00:00"), y = 1334, label = "            ") + 
   scale_x_datetime(date_labels = "%b '%y",
@@ -1742,7 +1765,7 @@ surf_ground_kelsey <- ggplot(SW_kelsey_kelseyville_USGS, aes(x=Datetime, y=WSE, 
   geom_line(data = well04 |> filter(! is.na(depth_adjusted)),
             aes(x=datetime, y=1498.56 - depth_adjusted, color = "Groundwater - BV EPA (Kelsey Creek Drive)"),
             size = 1,
-            ) +
+  ) +
   #annotate("rect", xmin = as.POSIXct("2023-01-23 12:00:00"), xmax = as.POSIXct("2023-02-27 07:15:00"), ymin = 1310, ymax = 1336, alpha = 0.2) +
   #annotate("text", x= as.POSIXct("2023-02-12 12:00:00"), y = 1334, label = "            ") +
   scale_x_datetime(date_labels = "%b '%y",

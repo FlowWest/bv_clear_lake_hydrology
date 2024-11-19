@@ -1,7 +1,7 @@
 Update Trandsducer Data - v2
 ================
 Maddee Wiggins (FlowWest)
-2024-10-29
+2024-11-19
 
 ## Source Data
 
@@ -101,7 +101,20 @@ ggplot(data = all_surface_water, aes(x = datetime, y = temperature_f, color = na
 
 ![](update_transducer_data_v2_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
-## Save aggregated data
+## By file type
+
+``` r
+ggplot(all_surface_water, aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = name)) +
+  scale_color_manual(values = palette) +
+  theme_minimal() +
+  facet_wrap(~file_name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom")
+```
+
+![](update_transducer_data_v2_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+\## Save aggregated data
 
 Now save an Rdata file of aggregated surface water data in the
 `data/surface_water` folder

@@ -76,6 +76,18 @@ ggplot(data = all_surface_water, aes(x = datetime, y = temperature_f, color = na
 
 ```
 
+## By file type 
+
+```{r fig.height=10, fig.width=15}
+ggplot(all_surface_water, aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = name)) +
+  scale_color_manual(values = palette) +
+  theme_minimal() +
+  facet_wrap(~file_name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom")
+
+```
 ## Save aggregated data 
 
 Now save an Rdata file of aggregated surface water data in the `data/surface_water` folder
