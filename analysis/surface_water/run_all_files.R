@@ -35,7 +35,8 @@ for(i in 1:length(compensated_folders)) {
     new_file <- read_csv(here::here("data-raw", "surface_water", "compensated_data",
                                     compensated_folders[i], file), skip = start_row) |>
       mutate(name = names[n],
-             file_name = file) |>
+             file_name = file,
+             iteration = i) |>
       data_formatting()
 
 

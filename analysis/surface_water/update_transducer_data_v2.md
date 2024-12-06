@@ -1,7 +1,7 @@
 Update Trandsducer Data - v2
 ================
 Maddee Wiggins (FlowWest)
-2024-11-19
+2024-11-21
 
 ## Source Data
 
@@ -114,7 +114,62 @@ ggplot(all_surface_water, aes(datetime, y = depth_ft)) +
 ```
 
 ![](update_transducer_data_v2_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
-\## Save aggregated data
+
+``` r
+# function
+flag_datum_shift <- function(data, threshold = 1.0) {
+  data |> 
+    group_by(name) |> 
+    arrange(datetime) |> 
+    mutate(
+      diff = c(NA, diff(depth_ft)),  
+      flagged = ifelse(abs(diff) > threshold, TRUE, FALSE)  
+    )
+}
+
+
+threshold <- 0.5  # Adjust threshold for your data
+flagged_data <- flag_datum_shift(all_surface_water, threshold)
+
+
+ggplot(flagged_data, aes(x = datetime, y = depth_ft)) +
+  geom_line() +
+  geom_point(data = flagged_data %>% filter(flagged), 
+             aes(x = datetime, y = depth_ft), 
+             color = "red", size = 3, shape = 8) +
+  labs(x = "Time",
+       y = "Depth (ft)",
+       title = "Datum Shift Detection",
+       subtitle = paste("Threshold for datum shift =", threshold, "ft")) +
+  theme_minimal() +
+  facet_wrap(~name)
+```
+
+![](update_transducer_data_v2_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+``` r
+flagged_data |>  
+  filter(flagged) |> 
+  select(name, datetime, depth_ft, diff, file_name)
+```
+
+    ## # A tibble: 150 × 5
+    ## # Groups:   name [4]
+    ##    name         datetime            depth_ft  diff file_name                    
+    ##    <chr>        <dttm>                 <dbl> <dbl> <chr>                        
+    ##  1 Bell Hill Rd 2018-12-16 14:15:00    0.868 0.934 Bell Hill_2018-12-13_through…
+    ##  2 Argonaut Rd  2018-12-17 01:00:00    0.988 0.981 Argonaut_2018-12-13_through_…
+    ##  3 Argonaut Rd  2018-12-17 01:15:00    2.71  1.72  Argonaut_2018-12-13_through_…
+    ##  4 Soda Bay Rd  2018-12-17 03:15:00    1.41  1.40  Soda Bay_Append_2022-05-03_0…
+    ##  5 Soda Bay Rd  2018-12-17 03:30:00    2.74  1.33  Soda Bay_Append_2022-05-03_0…
+    ##  6 Soda Bay Rd  2019-01-06 15:45:00    1.13  1.11  Soda Bay_Append_2022-05-03_0…
+    ##  7 Argonaut Rd  2019-01-06 16:15:00    3.61  0.549 Argonaut_2018-12-13_through_…
+    ##  8 Soda Bay Rd  2019-01-06 17:00:00    2.83  0.529 Soda Bay_Append_2022-05-03_0…
+    ##  9 Soda Bay Rd  2019-01-06 17:15:00    3.37  0.54  Soda Bay_Append_2022-05-03_0…
+    ## 10 Argonaut Rd  2019-01-09 04:00:00    4.24  0.536 Argonaut_2018-12-13_through_…
+    ## # ℹ 140 more rows
+
+## Save aggregated data
 
 Now save an Rdata file of aggregated surface water data in the
 `data/surface_water` folder

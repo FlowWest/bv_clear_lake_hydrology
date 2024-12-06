@@ -88,11 +88,83 @@ ggplot(all_surface_water, aes(datetime, y = depth_ft)) +
         legend.position = "bottom")
 
 ```
+
+```{r}
+# function
+flag_datum_shift <- function(data, threshold = 1.0) {
+  data |> 
+    group_by(name) |> 
+    arrange(datetime) |> 
+    mutate(
+      diff = c(NA, diff(depth_ft)),  
+      flagged = ifelse(abs(diff) > threshold, TRUE, FALSE)  
+    )
+}
+
+
+threshold <- 1  # Adjust threshold for your data
+flagged_data <- flag_datum_shift(all_surface_water, threshold)
+
+
+ggplot(flagged_data, aes(x = datetime, y = depth_ft)) +
+  geom_line() +
+  geom_point(data = flagged_data %>% filter(flagged), 
+             aes(x = datetime, y = depth_ft), 
+             color = "red", size = 3, shape = 8) +
+  labs(x = "Time",
+       y = "Depth (ft)",
+       title = "Datum Shift Detection",
+       subtitle = paste("Threshold for datum shift =", threshold, "ft")) +
+  theme_minimal() +
+  facet_wrap(~name)
+
+
+flagged_data |>  
+  filter(flagged) |> 
+  select(name, datetime, depth_ft, diff, file_name)
+
+```
+
+```{r eval=FALSE, include=FALSE}
+adjust_datum_shift <- function(data, threshold = 0.5) {
+  # Ensure data is sorted by time
+  tmp <- data  |>  
+    group_by(name) |> 
+    arrange(datetime) |> 
+    mutate(depth_diff = c(0, diff(depth_ft))) |> 
+    mutate(datum_shift = abs(depth_diff) > threshold)
+
+  # Calculate the cumulative adjustment for each datum shift
+  new_data <- tmp  |> 
+    mutate(correction = cumsum(ifelse(datum_shift, -depth_diff, 0)),
+           adjusted_depth = depth_ft + correction)
+  
+  return(new_data)
+}
+
+surface_water_correction <- adjust_datum_shift(all_surface_water, threshold = 0.5)
+
+ggplot(surface_water_correction |> filter(name == "Bell Hill Rd"), aes(x = datetime)) +
+  geom_line(aes(y = depth_ft), color = "red", linetype = "dashed") +  # Original data
+  geom_line(aes(y = adjusted_depth), color = "blue") +                # Corrected data
+  labs(
+    title = "Surface Water Depth Adjustment for Datum Shifts",
+    x = "Time",
+    y = "Depth (ft)"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::comma)
+```
+
 ## Save aggregated data 
 
 Now save an Rdata file of aggregated surface water data in the `data/surface_water` folder
 
 ```{r}
 all_surface_water |> saveRDS(here::here("data", "surface_water", "surface_water_data_aggregated.RDS"))
+
+flagged_data |> 
+  filter(flagged) |> 
+  saveRDS(here::here('data', 'surface_water', 'surface_water_with_datum_shift_flags.RDS'))
 
 ```
