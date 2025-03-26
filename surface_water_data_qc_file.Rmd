@@ -3,16 +3,11 @@ title: "Surface Water Data QC"
 author: "Maddee Wiggins"
 date: "`r Sys.Date()`"
 output: 
-  github_document:
-      toc: true
-#   html_document:
-#     code_folding: hide
-#     toc: true
-# editor_options: 
-#   chunk_output_type: console
+  html_document:
+    code_folding: hide
+    toc: true
 editor_options: 
-  markdown: 
-    wrap: 72
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -31,14 +26,12 @@ palette <- c("#999999", "#E69F00", "#56B4E9", "#F0E442", "#009E73", "#CC79A7")
 
 ```
 
+
 # Surface Water Data QC
 
-The purpose of this document is to QC the surface water data which is
-periodically collected by Big Valley Rancheria using Rugged Troll 200.
-The data have been corrected using barometric pressure.
+The purpose of this document is to QC the surface water data which is periodically collected by Big Valley Rancheria using Rugged Troll 200. The data have been corrected using barometric pressure. 
 
-### Load in BVR data
-
+### Load in BVR data 
 ```{r}
 surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
 
@@ -65,16 +58,13 @@ SW_kelsey_kelseyville_USGS <- read_csv(here::here('data-raw', 'surface_water', '
 
 **Timeframe:**
 
-Surface Water Data: `r min(surface_water$datetime)` -
-`r max(surface_water$datetime)`
+Surface Water Data: `r min(surface_water$datetime)` - `r max(surface_water$datetime)`
 
 **Completeness of record throughout timeframe:** Complete
 
 **Sampling Location**:
 
-Surface Water Data: Pressure transducers are located in the creek bed at
-Bell Hill Rd, Argonaut Rd, Soda Bay Rd, Adobe Reservoir, and Highland
-Springs Reservoir.
+Surface Water Data: Pressure transducers are located in the creek bed at Bell Hill Rd, Argonaut Rd, Soda Bay Rd, Adobe Reservoir, and Highland Springs Reservoir. 
 
 ### Raw Data
 
@@ -96,18 +86,11 @@ ggplot(data = surface_water, aes(x = datetime, y = depth_ft, color = name)) +
   facet_wrap(~name, scales = "free_y")
 ```
 
-### NEW DATA QC
+### NEW DATA QC 
 
-**Description of New Data** - new data was uploaded for `2024-09-06`
+*Description of New Data* - new data was uploaded for `2024-09-06`
 
-**Description of QC**
-
--   Zero flow oscillations were similar in the new 2024 data from Adobe
-    Reservoir, Highland Springs Reservoir, and Soda Bay Road. For these
-    sites, we will calculate a new zero flow vertical offset for all the
-    data.
--   Bell Hill Rd
--   Argonaut Rd
+*Description of QC*
 
 ```{r}
 
@@ -143,146 +126,7 @@ ggplot(new_data_and_previous_data, aes(datetime, y = depth_ft)) +
 
 ```
 
-#### Adobe Reservoir
-
-```{r}
-adobe <- new_data_and_previous_data |> 
-  filter(name == "Adobe Reservoir") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(adobe)
-
-```
-
-**Notes**
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Highland Springs Reservoir
-
-```{r}
-highland <- new_data_and_previous_data |> 
-  filter(name == "Highland Springs Reservoir") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(highland)
-
-```
-
-**Notes**
-
--   large spikes are from reservoir releases
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Soda Bay Rd
-
-```{r}
-soda <- new_data_and_previous_data |> 
-  filter(name == "Soda Bay Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(soda)
-
-```
-
-**Notes**
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Bell Hill Rd
-
-```{r}
-bell <- new_data_and_previous_data |> 
-  filter(name == "Bell Hill Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(bell)
-
-```
-
-**Notes**
-
--   TODO: look at larger time series and see if majority of zero flow
-    values are similar - If similar, use previous methodology to create
-    new offset if not, create offset based off new data
-
--   Does 7-22 spike correlate with releases in highland springs
-    reservoir? Probably related to reservoir release from 7-19
-
-#### Argonaut Rd
-
-```{r}
-arg <- surface_water |> 
-  filter(name == "Argonaut Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(arg)
-
-```
-
-**Notes**
-
--   high oscillations in low flow; evident where it goes from bad
-    oscillation data to good measurements. Cut out high oscillation
-    during low flow and make it zero.
-
--   use prior season vertical transformations
-
 ##### Identify any datum shifts
-
 ```{r}
 # function
 flag_datum_shift <- function(data, threshold = 1.0) {
@@ -295,7 +139,7 @@ flag_datum_shift <- function(data, threshold = 1.0) {
     )
 }
 
-threshold <- 1  # Adjust threshold 
+threshold <- 1  # Adjust threshold for your data
 flagged_data <- flag_datum_shift(new_data_and_previous_data, threshold)
 
 ggplot(flagged_data, aes(x = datetime, y = depth_ft)) +
@@ -312,15 +156,15 @@ ggplot(flagged_data, aes(x = datetime, y = depth_ft)) +
 
 flagged_data |>  
   filter(flagged) |> 
-  select(name, datetime, depth_ft, diff, file_name) 
+  select(name, datetime, depth_ft, diff, file_name)
 
 ```
 
 ##### Other QC issues
 
-**fix issues here and describe**
+*fix issues here and describe*
 
-##### Replace QC'd data in final dataset
+##### Replace QC'd data in final dataset 
 
 ```{r}
 surface_water <- surface_water |> 
@@ -329,9 +173,10 @@ surface_water <- surface_water |>
 
 ```
 
+
 ### Previous QC
 
-```{r echo=FALSE}
+```{r}
 tibble(
   Step = c("Datum Shift", 
            "Remove Invalid Ranges", 
@@ -359,7 +204,7 @@ tibble(
 
 ```
 
-#### Datum Shift
+#### Datum Shift 
 
 ```{r}
 surface_water <- surface_water |> 
@@ -392,7 +237,7 @@ ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x = datetime,
 
 ```
 
-Compare to Water Board data
+Compare to Water Board data 
 
 ```{r}
 # From this we see that the datum shift makes our data match with Water Board's data at the same location for most of the winter. 
@@ -428,6 +273,7 @@ ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y
 
 ```
 
+
 ```{r}
 surface_water <- surface_water |> 
   mutate(depth_adjust02 = 
@@ -461,11 +307,7 @@ ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x = datetime,
 
 #### Vertical Oscillations
 
-This resolves issues with oscillations when the creeks are dry. Each
-dataset is vertically transformed to get the zero flow values to roughly
-evenly distribute around 0 feet depth. Assign all values less than or
-equal to the maximum observed depth among these dry conditions
-oscillations for each transducer to zero.
+This resolves issues with oscillations when the creeks are dry. Each dataset is vertically transformed to get the zero flow values to roughly evenly distribute around 0 feet depth. Assign all values less than or equal to the maximum observed depth among these dry conditions oscillations for each transducer to zero. 
 
 ```{r}
 bellhill_offset <- mean((surface_water |> filter(name == "Bell Hill Rd"))$depth_adjust02[(surface_water |> filter(name == "Bell Hill Rd"))$depth_adjust02 <= 0.01], na.rm = T)
@@ -501,7 +343,7 @@ surface_water <- surface_water |>
       T ~ depth_adjust03
     )) 
 
-ggplot(data = surface_water, aes(x = datetime, y = depth_adjust03, color = name)) + 
+ ggplot(data = surface_water, aes(x = datetime, y = depth_adjust03, color = name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -549,9 +391,7 @@ ggplot(data = surface_water |> filter(name == "Argonaut Rd"), aes(x=datetime, y=
 
 #### Smoothed Data (Moving Average)
 
-The data looks clean, but the sharp peaks make it more difficult to
-ascertain trends on a longer time interval. To remedy this, we will
-apply a 7 day moving average to the data.
+The data looks clean, but the sharp peaks make it more difficult to ascertain trends on a longer time interval. To remedy this, we will apply a 7 day moving average to the data.
 
 ```{r}
 surface_water <- surface_water |> 
@@ -613,11 +453,7 @@ write_csv(AdobeCreekTransducers_BVR_Depth_Cleaned, here::here('data', 'surface_w
 
 ```
 
-This 7-day moving average makes trends on a week time interval clearer
-and also better illustrates trends between the monitoring locations. To
-further interrogate relationships between monitoring locations, we take
-a look at mean monthly stages across the sites. TODO - does this
-happen??
+This 7-day moving average makes trends on a week time interval clearer and also better illustrates trends between the monitoring locations. To further interrogate relationships between monitoring locations, we take a look at mean monthly stages across the sites. TODO - does this happen??
 
 #### Water Surface Elevations
 
@@ -654,9 +490,7 @@ ggplot(data = sw_wse, aes(x = datetime, y = WSE, color = name)) +
 
 #### Monthly Average Summary
 
-This graphic allows us to interrogate the relationships between stages
-at the 3 monitoring locations during the most important months for chi
-spawning.
+This graphic allows us to interrogate the relationships between stages at the 3 monitoring locations during the most important months for chi spawning.
 
 ```{r}
 spawning_months <- surface_water |> 
@@ -683,7 +517,7 @@ ggplot(spawning_months, aes(x = month, y = mean, fill = name)) +
 
 ```
 
-**Wetter years clearly have a different pattern**
+Wetter years clearly have a different pattern
 
 ```{r}
 spawning_months_by_WY <- surface_water |> 
@@ -800,11 +634,8 @@ ggplot(spawning_months_by_WY |> filter(WY == 2023), aes(x=month, y=mean, fill=na
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 ```
 
-#### Flow-Stage Plot Generation
-
-A bit of a stand-in for a rating curve. Just plotting our flow
-measurements with stages reported from the transducer in these
-locations.
+####  Flow-Stage Plot Generation 
+A bit of a stand-in for a rating curve. Just plotting our flow measurements with stages reported from the transducer in these locations. 
 
 ```{r}
 stage_vs_flow <- stage_flow |> select(c("Site_Name", "Date", "Time", "Flow_cfs", "Corrected_Depth_ft", "WSE_ft-NAVD88"))|> 
@@ -879,7 +710,7 @@ p_sodabay
 
 ### Data Quality Figures
 
-Highlighting inherent noise and uncertainty
+Highlighting inherent noise and uncertainty 
 
 ```{r}
 p_base_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust04, color=name)) + 
@@ -914,9 +745,7 @@ p_base_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), a
 
 p_base_noise
 ```
-
-This pattern seems to occur when depth levels off, such as following a
-storm. Intensified oscillations in 2023 season on Bell Hill.
+This pattern seems to occur when depth levels off, such as following a storm. Intensified oscillations in 2023 season on Bell Hill.
 
 ```{r}
 p_worse_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust04, color=name)) + 
@@ -949,13 +778,9 @@ p_worse_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), 
 
 p_worse_noise
 ```
+We can see that this oscillation is much worse in 2023. Some oscillations are almost 0.5 feet! This is not a real physical phenomenon. 
 
-We can see that this oscillation is much worse in 2023. Some
-oscillations are almost 0.5 feet! This is not a real physical
-phenomenon.
-
-Zero water depth oscillations
-
+Zero water depth oscillations 
 ```{r}
 p_zeroflow_noise <- ggplot(data = surface_water |> filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")), aes(x=datetime, y=depth_adjust02, color=name)) + 
   geom_line() + 
@@ -987,7 +812,7 @@ p_zeroflow_noise <- ggplot(data = surface_water |> filter(name %in% c("Bell Hill
 p_zeroflow_noise
 ```
 
-**Argonaut Error in 2023**
+Argonaut Error in 2023
 
 ```{r}
 p_argonaut_error <- ggplot(data = surface_water|> filter(name == "Argonaut Rd"), aes(x=datetime, y=depth_adjust02, color="Argonaut")) + 
@@ -1022,7 +847,7 @@ p_argonaut_error <- ggplot(data = surface_water|> filter(name == "Argonaut Rd"),
 p_argonaut_error
 ```
 
-**Bell Hill Sudden Datum Shift**
+Bell Hill Sudden Datum Shift 
 
 ```{r}
 p_bellhill_datumshift <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_ft, color=name)) + 
@@ -1056,8 +881,7 @@ p_bellhill_datumshift <- ggplot(data = surface_water |> filter(name == "Bell Hil
 p_bellhill_datumshift
 ```
 
-### Reservoir Figures
-
+### Reservoir Figures 
 ```{r}
 p_reservoir_data <- ggplot(data = surface_water |> filter(name == "Adobe Reservoir"), aes(x=datetime, y=depth_adjust04, color= "Adobe Reservoir")) + 
   geom_line() + 
@@ -1090,3 +914,5 @@ p_reservoir_data <- ggplot(data = surface_water |> filter(name == "Adobe Reservo
 
 p_reservoir_data
 ```
+
+

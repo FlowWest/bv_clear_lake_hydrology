@@ -1,0 +1,286 @@
+---
+title: "ARCHIVE - method comparison"
+author: "Maddee Rubenson (FlowWest)"
+date: "`r Sys.Date()`"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE)
+
+options(digits = 15)  # Set to display 6 significant digits
+
+```
+
+**Method 2 `run_all_files.R` matches previous versions and records**
+
+Compare two methods for data ingestion:
+
+**Method 1**: Pull in legacy data from `data/surface_water` and append the new dataset to that
+
+**Method 2**: Run all data within the `data-raw/surface_water/compensated_data` which includes new datasets
+
+## Method 1
+
+Read in data through `qc_data.R`
+
+```{r include=FALSE}
+source(here::here("analysis","surface_water", "qc_data.R"))
+```
+
+Combine the newly updated files:
+
+```{r}
+all_updated <- bind_rows(argonaut_updated, bellhill_updated, sodabay_updated, adobe_updated, highland_updated) |> 
+  mutate(method = "method 1") |> 
+  glimpse()
+```
+
+## Method 2
+
+Read in the data through `run_all_files.R`
+
+```{r include=FALSE}
+source(here::here("analysis","surface_water", "run_all_files.R"))
+```
+
+```{r}
+all_files_clean_method_2 <- all_files_clean |> 
+  mutate(method = "method 2") |> 
+  mutate(name = case_when(name == "Argonaut" ~ "Argonaut Rd",
+                          name == "Adobe" ~ "Adobe Reservoir",
+                          name == "Bell Hill" ~ "Bell Hill Rd",
+                          name == "Highland" ~ "Highland Springs Reservoir",
+                          name == "Soda Bay" ~ "Soda Bay Rd",
+                          .default = as.character(name))) |> 
+  glimpse()
+
+```
+
+## Method Comparison
+
+**Take-a-ways**
+
+-   The minimum and maximum dates are the same for all records except Adobe Reservoir
+
+-   The number of records between the two methods is inconsistent for all transducers
+
+```{r}
+
+all_files <- all_files_clean_method_2 |> 
+   bind_rows(all_updated) |> 
+   mutate(temperature_f = signif(temperature_f, 15))
+
+all_files |>  
+  group_by(method, name) |>
+  summarise(min_date = min(datetime),
+            max_date = max(datetime),
+            n = n()) |> 
+  arrange(name) |> 
+  knitr::kable()
+
+```
+
+### Adobe Reservoir
+
+-   The first method is truncating the dataset (see table above)
+-   All data that overlaps is the same
+
+```{r}
+all_files |> 
+  filter(name == "Adobe Reservoir") |> 
+  ggplot(aes(x = datetime, y = barometric_pressure_psi)) + 
+  geom_line(aes(color = method)) +
+  facet_wrap(~method)
+
+method1_adobe <- all_files |> 
+  filter(name == "Adobe Reservoir" & method == "method 1") 
+
+method2_adobe <- all_files |> 
+  filter(name == "Adobe Reservoir" & method == "method 2") 
+
+# all rows that are in method 2 but NOT in method 1
+do_not_match <- method1_adobe |> 
+  select(-method, -file_name, -seconds) |> 
+  anti_join(method2_adobe |> 
+              select(-method, -seconds)) 
+
+all_files |> filter(name == "Adobe Reservoir") |> filter(datetime == "2024-02-09 16:30:00") 
+
+```
+
+### Argonaut Rd
+
+* There are `8536` more rows in Method 2 vs. Method 1
+* Looking at the rows that do not match, their are inconsistencies with the `seconds` column
+* Missing data that is included in Method 2 between 2020-02-01 and 2020-05-03
+* The start and end dates are the same between the two methods
+
+```{r}
+all_files |> 
+  filter(name == "Argonaut Rd") |> 
+  ggplot(aes(x = datetime, y = barometric_pressure_psi)) + 
+  geom_line(aes(color = method)) + facet_wrap(~method)
+
+method1_arg <- all_files |> 
+  filter(name == "Argonaut Rd" & method == "method 1") 
+
+method2_arg <- all_files |> 
+  filter(name == "Argonaut Rd" & method == "method 2") 
+
+# all rows that are in method 2 but NOT in method 1
+do_not_match <- method2_arg |> 
+  select(-method, -file_name, -seconds) |> 
+  anti_join(method1_arg |> 
+              select(-method, -seconds)) 
+
+do_not_match |>  
+ggplot(aes(x = datetime, y = barometric_pressure_psi)) +
+  geom_line()
+
+do_not_match |> 
+  summarise(min_date = min(datetime),
+            max_date = max(datetime))
+
+all_files |> 
+  filter(name == "Argonaut Rd" & method == "method 1") |> 
+  ggplot(aes(x = datetime, y = barometric_pressure_psi)) + 
+  geom_line() + 
+  geom_point(data = do_not_match, aes(x = datetime, y = barometric_pressure_psi), color = 'pink', alpha = 0.1) 
+
+```
+
+### Bell Hill Rd
+
+* all the differences are within the year 2020
+
+```{r}
+all_files |> 
+  filter(name == "Bell Hill Rd") |> 
+  ggplot(aes(x = datetime, y = barometric_pressure_psi)) + 
+  geom_line(aes(color = method)) + facet_wrap(~method)
+
+method1_bell <- all_files |> 
+  filter(name == "Bell Hill Rd" & method == "method 1") 
+
+method2_bell <- all_files |> 
+  filter(name == "Bell Hill Rd" & method == "method 2")# |> 
+  #filter(datetime == "2020-01-01 19:00:15")
+
+# all rows that are in method 2 but NOT in method 1
+do_not_match <- method2_bell |> 
+  select(-method, -file_name, -seconds) |> 
+  anti_join(method1_bell |> 
+              select(-method, -seconds)) 
+
+# bell_1 <- method1_bell |> filter(datetime == "2023-11-01 13:00:00")
+# bell_2 <- method2_bell |> filter(datetime == "2023-11-01 13:00:00")
+# 
+# bell_1
+# bell_2
+
+do_not_match |>  
+ggplot(aes(x = datetime, y = barometric_pressure_psi)) +
+  geom_line()
+
+do_not_match |> 
+  summarise(min_date = min(datetime),
+            max_date = max(datetime))
+
+all_files |> 
+  filter(name == "Bell Hill Rd" & method == "method 1") |> 
+  ggplot(aes(x = datetime, y = barometric_pressure_psi)) + 
+  geom_line() + 
+  geom_point(data = do_not_match, aes(x = datetime, y = barometric_pressure_psi), color = 'pink', alpha = 0.1) 
+
+```
+
+`r knitr::knit_exit()`
+
+Explore differences between the two methods
+
+```{r}
+all_files |> 
+  group_by(year(datetime), month(datetime), day(datetime), method, name) |> 
+  summarise(n = n()) |> 
+  ggplot() + 
+  geom_col(aes(x = as.factor(`year(datetime)`), y = n, fill = method), position = "dodge") + 
+  facet_wrap(~ name) +
+  coord_flip() +
+  theme_minimal()
+
+all_files |> 
+  filter(year(datetime) == 2020) |> 
+  filter(name %in% c("Argonaut Rd", "Bell Hill Rd")) |> 
+  group_by(year(datetime), month(datetime), day(datetime), method, name) |> 
+  summarise(n = n()) |> 
+  ggplot() + 
+  geom_col(aes(x = as.factor(`month(datetime)`), y = n, fill = method), position = "dodge") + 
+  facet_wrap(~ name) +
+  coord_flip() +
+  theme_minimal()
+
+all_files |> 
+  filter(year(datetime) == 2020) |> 
+  filter(name %in% c("Argonaut Rd", "Bell Hill Rd")) |> 
+  group_by(year(datetime), month(datetime), day(datetime), method, name) |> 
+  summarise(n = n()) |> 
+  ggplot() + 
+  geom_col(aes(x = as.factor(`day(datetime)`), y = n, fill = method), position = "dodge") + 
+  facet_wrap(~ name) +
+  coord_flip() +
+  theme_minimal()
+
+all_files |> 
+  filter(year(datetime) == 2020 & day(datetime) == 1 & month(datetime) == 1) |> 
+  filter(name %in% c("Argonaut Rd")) |> 
+  arrange(datetime) 
+# Method 2 has data betwen 2020-01-01 23:00:15 and 2020-01-01 23:15:00 AND and 2020-01-01 23:15:15 to 2020-01-01 23:30:00
+# that does not exist in Method 1 
+
+all_files |> 
+  filter(year(datetime) == 2020 & day(datetime) == 1 & month(datetime) == 1) |> 
+  filter(name %in% c("Argonaut Rd", "Bell Hill Rd")) |> 
+  ggplot() + 
+  geom_line(aes(x = datetime, y = depth_ft, color = method)) +
+  facet_wrap(~name) +
+  theme_minimal()
+
+all_files |>
+  filter(name == "Argonaut Rd") |>
+  filter(year(datetime) == 2020) |> 
+  ggplot(aes(x = datetime, y = depth_ft, color = method, alpha = 0.5)) +
+  geom_line() +
+  labs(color = "Transducer Location", x = "Datetime", y = "Water Depth (ft)") +
+  theme_minimal() +
+  facet_wrap(~name + method)
+```
+
+```{r}
+all_files |>
+  # filter(name == "Argonaut Rd") |>
+  # filter(year(datetime) == 2020) |> 
+  ggplot(aes(x = datetime, y = depth_ft, color = method, alpha = 0.5)) +
+  geom_line() +
+  labs(color = "Transducer Location", x = "Datetime", y = "Water Depth (ft)") +
+  theme_minimal() +
+  facet_wrap(~name)
+
+all_files |> 
+  ggplot(aes(x = datetime, y = temperature_f, color = method,alpha = 0.5)) +     
+  geom_line() + 
+  labs(color = "Transducer Location", x = "Datetime", y = "Temperature (F)") +
+  theme_minimal() + 
+  facet_wrap(~name)
+
+all_files |>
+  ggplot(aes(x = datetime, y = pressure_psi, color = method, alpha = 0.5)) +
+  geom_line() +
+  labs(color = "Transducer Location", x = "Datetime", y = "Pressure (PSI)") +
+  theme_minimal() +
+  facet_wrap(~name)
+
+```

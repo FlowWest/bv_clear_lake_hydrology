@@ -1,52 +1,80 @@
 ---
-title: "Surface Water Data QC"
-author: "Maddee Wiggins"
+title: "Transducer and Ground Water Data Visualization / Working Doc"
+author: "Inigo Peng, Cameron Tenner, Maddee Wiggins"  
 date: "`r Sys.Date()`"
 output: 
-  github_document:
-      toc: true
-#   html_document:
-#     code_folding: hide
-#     toc: true
-# editor_options: 
-#   chunk_output_type: console
+  html_document:
+    code_folding: hide
+    toc: true
+    number_sections: true
 editor_options: 
-  markdown: 
-    wrap: 72
+  chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
+```{r, setup, include=FALSE}
 library(tidyverse)
-#remotes::install_github("flowwest/CDECRetrieve")
-library(CDECRetrieve)
+library(scales)
+library(janitor)
+library(lubridate)
+library(plotly)
+library(zoo)
+library(sf)
+library(sp)
+library(leaflet)
+library(htmltools)
 library(dataRetrieval)
-
+library(patchwork)
 
 knitr::opts_chunk$set(
   warning = FALSE,
   message = FALSE)
-
-palette <- c("#999999", "#E69F00", "#56B4E9", "#F0E442", "#009E73", "#CC79A7")
-
-
 ```
 
-# Surface Water Data QC
-
-The purpose of this document is to QC the surface water data which is
-periodically collected by Big Valley Rancheria using Rugged Troll 200.
-The data have been corrected using barometric pressure.
-
-### Load in BVR data
-
-```{r}
+```{r include=FALSE}
 surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
 
 # unsure if this is for GW or SW
 stage_flow <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'Flow_vs_Depth_Table.xlsx'), sheet = "Data") 
 ```
 
-### Load in 3rd Party data
+# Surface Water Data {.tabset}
+
+## BVR EPA Data
+
+### Description of Data
+
+The surface water data is periodically collected by Big Valley Rancheria using Rugged Troll 200. The data have been corrected using barometric pressure measurements.
+
+**Timeframe:**
+
+Surface Water Data: `r min(surface_water$datetime)` - `r max(surface_water$datetime)`
+
+**Completeness of record throughout timeframe:** Complete
+
+**Sampling Location**:
+
+Surface Water Data: Pressure transducers are located in the creek bed at Bell Hill Rd, Argonaut Rd, and Soda Bay Rd. #TODO: add other sites
+
+**Data Contact:**
+
+### Access BVR EPA Data:
+
+```{r eval=FALSE, include=FALSE}
+surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
+
+# unsure if this is for GW or SW
+stage_flow <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'Flow_vs_Depth_Table.xlsx'), sheet = "Data") 
+```
+
+## 3rd-Party Data
+
+### Description of Data
+
+- USGS data on clearlake level and kelsey creek at kelseyville 
+- Waterboard surface water data collected at Bell Hill Rd
+- County groundwater wells A1, J1, and G2
+
+### Access 3rd-Party Data
 
 ```{r}
 clearlake_level <- readNWISdv("11450000", "00065","2007-10-01", Sys.Date()) |> 
@@ -54,7 +82,7 @@ clearlake_level <- readNWISdv("11450000", "00065","2007-10-01", Sys.Date()) |>
          Date = as.POSIXct(Date, tz = "America/Los_Angeles"))
 
 SW_bellhill_WB <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'water_board', 'PressureTransducer_and_Flow_Data_20230728.xlsx'), 
-                                    sheet = "AC4-2023 Data", skip = 8)  |>
+                                    sheet = "AC4-2023 Data", skip=8)  |>
   mutate(Date = as.POSIXct(`Date Time (UTC)`),
          Date = with_tz(Date, "America/Los_Angeles"))
 
@@ -63,306 +91,41 @@ SW_kelsey_kelseyville_USGS <- read_csv(here::here('data-raw', 'surface_water', '
          WSE = Stage + 1475.44)
 ```
 
-**Timeframe:**
+# Data Processing and Visualization:
 
-Surface Water Data: `r min(surface_water$datetime)` -
-`r max(surface_water$datetime)`
-
-**Completeness of record throughout timeframe:** Complete
-
-**Sampling Location**:
-
-Surface Water Data: Pressure transducers are located in the creek bed at
-Bell Hill Rd, Argonaut Rd, Soda Bay Rd, Adobe Reservoir, and Highland
-Springs Reservoir.
+## Surface Water Data: {.tabset}
 
 ### Raw Data
 
-```{r}
-surface_water |> 
-  group_by(name) |>
-  summarise(min_date = min(datetime),
-            max_date = max(datetime),
-            n_records = n()) |> 
-  knitr::kable()
-```
-
-```{r fig.height=9, fig.width=11}
-ggplot(data = surface_water, aes(x = datetime, y = depth_ft, color = name)) +     
+```{r, echo = FALSE}
+transducer_all <- ggplot(data = surface_water, aes(x=datetime, y=depth_ft, color=name)) + 
   geom_line() + 
-  scale_color_manual(values = palette) +
-  labs(color = "Transducer Location", x = "Datetime", y = "Water Depth (ft)") +
-  theme_minimal() +
-  facet_wrap(~name, scales = "free_y")
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "Raw Stage Data on Adobe Creek",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  ) 
+
+transducer_all
+#ggplotly(transducer_all)
 ```
 
-### NEW DATA QC
+Something happens with the transducer at Bell Hill Rd in December of 2022. Datum seems to shift by 1.9 ft
 
-**Description of New Data** - new data was uploaded for `2024-09-06`
+Between 08/15/2022 and 12/07/2022 going to assign NA values to Bell Hill Rd. After 12/07/2022 and until depths drop to ~0 on 06/10/23, going to correct depths -1.9 ft. This depth is derived from transect taken on 1/24/2023.
 
-**Description of QC**
+Also the issue of the removal of the transducer...addressed by steps below that cut off Bell Hill record in April 2023
 
--   Zero flow oscillations were similar in the new 2024 data from Adobe
-    Reservoir, Highland Springs Reservoir, and Soda Bay Road. For these
-    sites, we will calculate a new zero flow vertical offset for all the
-    data.
--   Bell Hill Rd
--   Argonaut Rd
+### Datum Change Adjustment
 
 ```{r}
-
-new_data <- c(
-  'Adobe Reservoir Outlet_Append_2024-09-06_12-37-57-838-BaroMerge.csv',
-  'Argonaut_Append_2024-09-06_13-25-29-804-BaroMerge.csv',
-  'Bell Hill_Append_2024-09-06_12-58-21-777-BaroMerge.csv',
-  'Highland Springs Outlet_Append_2024-09-06_13-09-48-628-BaroMerge.csv',
-  'Soda Bay_Append_2024-09-06_11-46-00-928-BaroMerge.csv'
-)
-
-# Extract the iteration(s) corresponding to the new data
-new_data_iterations <- surface_water |> 
-  filter(file_name %in% new_data) |> 
-  pull(iteration) |> 
-  unique()
-
-# Get the previous iteration(s)
-previous_iterations <- new_data_iterations - 2
-
-# Combine the new data with the corresponding previous data
-new_data_and_previous_data <- surface_water |> 
-  filter(iteration >= previous_iterations) 
-
-# plot
-ggplot(new_data_and_previous_data, aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom")
-
-
-```
-
-#### Adobe Reservoir
-
-```{r}
-adobe <- new_data_and_previous_data |> 
-  filter(name == "Adobe Reservoir") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(adobe)
-
-```
-
-**Notes**
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Highland Springs Reservoir
-
-```{r}
-highland <- new_data_and_previous_data |> 
-  filter(name == "Highland Springs Reservoir") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(highland)
-
-```
-
-**Notes**
-
--   large spikes are from reservoir releases
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Soda Bay Rd
-
-```{r}
-soda <- new_data_and_previous_data |> 
-  filter(name == "Soda Bay Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(soda)
-
-```
-
-**Notes**
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Bell Hill Rd
-
-```{r}
-bell <- new_data_and_previous_data |> 
-  filter(name == "Bell Hill Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(bell)
-
-```
-
-**Notes**
-
--   TODO: look at larger time series and see if majority of zero flow
-    values are similar - If similar, use previous methodology to create
-    new offset if not, create offset based off new data
-
--   Does 7-22 spike correlate with releases in highland springs
-    reservoir? Probably related to reservoir release from 7-19
-
-#### Argonaut Rd
-
-```{r}
-arg <- surface_water |> 
-  filter(name == "Argonaut Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(arg)
-
-```
-
-**Notes**
-
--   high oscillations in low flow; evident where it goes from bad
-    oscillation data to good measurements. Cut out high oscillation
-    during low flow and make it zero.
-
--   use prior season vertical transformations
-
-##### Identify any datum shifts
-
-```{r}
-# function
-flag_datum_shift <- function(data, threshold = 1.0) {
-  data |> 
-    group_by(name) |> 
-    arrange(datetime) |> 
-    mutate(
-      diff = c(NA, diff(depth_ft)),  
-      flagged = ifelse(abs(diff) > threshold, TRUE, FALSE)  
-    )
-}
-
-threshold <- 1  # Adjust threshold 
-flagged_data <- flag_datum_shift(new_data_and_previous_data, threshold)
-
-ggplot(flagged_data, aes(x = datetime, y = depth_ft)) +
-  geom_line() +
-  geom_point(data = flagged_data %>% filter(flagged), 
-             aes(x = datetime, y = depth_ft), 
-             color = "red", size = 3, shape = 8) +
-  labs(x = "Time",
-       y = "Depth (ft)",
-       title = "Datum Shift Detection",
-       subtitle = paste("Threshold for datum shift =", threshold, "ft")) +
-  theme_minimal() +
-  facet_wrap(~name)
-
-flagged_data |>  
-  filter(flagged) |> 
-  select(name, datetime, depth_ft, diff, file_name) 
-
-```
-
-##### Other QC issues
-
-**fix issues here and describe**
-
-##### Replace QC'd data in final dataset
-
-```{r}
-surface_water <- surface_water |> 
-  filter(!(file_name %in% new_data_and_previous_data$file_name)) |> 
-  bind_rows(new_data_and_previous_data)
-
-```
-
-### Previous QC
-
-```{r echo=FALSE}
-tibble(
-  Step = c("Datum Shift", 
-           "Remove Invalid Ranges", 
-           "Remove data",
-           "Oscillations",
-           "Oscillations",
-           "Replace values"),
-  Description = c(
-    "Applied a 1.9 ft datum shift for Bell Hill Rd for December 2022",
-    "Between 08/15/2022 and 12/07/2022 assign NA values to Bell Hill Rd. After 12/07/2022 and until depths drop to ~0 on 06/10/23, correct depths -1.9 ft. This depth is derived from transect taken on 1/24/2023",
-    "Remove data between 04/05/2023 and 06/10/2023 for Bell Hill Gage. Also going to remove the data from 09/01/2023 to 09/27/2023 when the transducer was removed.",
-    "Performed offset correction for dry oscillating conditions. Calculated average oscillation offsets for each transducer and applied vertical adjustments to center dry values around 0 ft of depth.",
-    "Assign all values less than or equal to the maximum observed depth among these dry conditions oscillations for each transducer to zero",
-    "Something odd is happening at Argonaut starting in August of 2023, lasting until the first rains of WY 2024 in December 2023. Sudden, high oscillation recordings while other gages show 0 flow, and precipitation record shows no precipitation. Replace values between the pattern starting (08/15/2023) and first real flows of WY 2024 (12/19/2023)."
-  ),
-  Affected_Data = c(
-    "Bell Hill Rd", 
-    "Bell Hill Rd", 
-    "Bell Hill Rd",
-    "All locations",
-    "All locations",
-    "Argonaut Rd"
-  )
-) |> knitr::kable(caption = "Summary of Adjustments Made to Surface Water Data")
-
-```
-
-#### Datum Shift
-
-```{r}
-surface_water <- surface_water |> 
+surface_water <- surface_water  |>
   mutate(depth_adjust = 
            case_when(
              name == "Bell Hill Rd" & 
@@ -374,9 +137,11 @@ surface_water <- surface_water |>
                datetime < as.POSIXct("2023-06-10 15:00:00", tz="America/Los_Angeles") ~ 
                depth_ft - 1.9,
              T ~ depth_ft
-           ))
+  ))
+```
 
-ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x = datetime, y = depth_adjust, color = name)) + 
+```{r, echo = FALSE}
+transducer_all <- ggplot(data = surface_water, aes(x=datetime, y=depth_adjust, color=name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -384,25 +149,22 @@ ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x = datetime,
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "QC - Bell Hill Rd with Datum Shift",
+    title = "Raw Stage Data on Adobe Creek",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
   ) 
 
+transducer_all
+#ggplotly(transducer_all)
 ```
 
-Compare to Water Board data
+Bell Hill starts to look funky again later in the 2022/2023 winter, falling below 0 ft of depth. 
+
+Let's compare this to the water board data to figure out how to proceed with this data.
 
 ```{r}
-# From this we see that the datum shift makes our data match with Water Board's data at the same location for most of the winter. 
-# However, they begin to diverge in early April of 2023. 
-# 
-# To account for this, going to remove data between 04/05/2023 and 06/10/2023 for Bell Hill Gage. 
-# 
-# Also going to remove the data from 09/01/2023 to 09/27/2023 when the transducer was removed. 
-
-ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust, color = "BVR EPA")) + 
+plot_sw_bellhill <- ggplot(data = surface_water  |>filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust, color = "BVR EPA")) + 
   geom_line() + 
   geom_line(data = SW_bellhill_WB, aes(x=Date, y = `Depth (ft)`, color = "Water Board")) + 
   scale_color_manual(name = "", values = c("BVR EPA" = "#1B9E77", "Water Board" = "red")) + 
@@ -426,10 +188,28 @@ ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
+plot_sw_bellhill
+
+# ggsave(
+#   "Figs/report/data_quality/BVR_WB_Comparison_BellHill.png",
+#   plot_sw_bellhill,
+#   device = "png",
+#   width = 6,
+#   height = 4,
+#   units = "in"
+# )
 ```
 
+From this we see that the datum shift makes our data match with Water Board's data at the same location for most of the winter. 
+
+However, they begin to diverge in early April of 2023. 
+
+To account for this, going to remove data between 04/05/2023 and 06/10/2023 for Bell Hill Gage. 
+
+Also going to remove the data from 09/01/2023 to 09/27/2023 when the transducer was removed. 
+
 ```{r}
-surface_water <- surface_water |> 
+surface_water <- surface_water  |>
   mutate(depth_adjust02 = 
            case_when(
              name == "Bell Hill Rd" & 
@@ -440,10 +220,12 @@ surface_water <- surface_water |>
                datetime >= as.POSIXct("2023-09-01 08:00:00", tz="America/Los_Angeles") &
                datetime < as.POSIXct("2023-09-27 09:00:00", tz="America/Los_Angeles") ~ 
                0,
-             T ~ depth_adjust
-           ))
+    T ~ depth_adjust
+  ))
+```
 
-ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x = datetime, y = depth_adjust02, color = name)) + 
+```{r, echo = FALSE}
+transducer_all <- ggplot(data = surface_water, aes(x=datetime, y=depth_adjust02, color=name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -451,36 +233,36 @@ ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x = datetime,
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "QC - adjustments from waterboard comparison",
+    title = "Raw Stage Data on Adobe Creek",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
   ) 
 
+transducer_all
+#ggplotly(transducer_all)
 ```
 
-#### Vertical Oscillations
+Issues with oscillations when creek is dry. 
 
-This resolves issues with oscillations when the creeks are dry. Each
-dataset is vertically transformed to get the zero flow values to roughly
-evenly distribute around 0 feet depth. Assign all values less than or
-equal to the maximum observed depth among these dry conditions
-oscillations for each transducer to zero.
+Lets vertically transform each dataset to get the zero flow values to roughly evenly distribute around 0 ft of depth. Then assign every value below the maximum of the oscillation to zero. 
 
+This code finds the average value of oscillating observations under dry conditions for each transducer
 ```{r}
-bellhill_offset <- mean((surface_water |> filter(name == "Bell Hill Rd"))$depth_adjust02[(surface_water |> filter(name == "Bell Hill Rd"))$depth_adjust02 <= 0.01], na.rm = T)
+bellhill_offset <- mean((surface_water|> filter(name == "Bell Hill Rd"))$depth_adjust02[(surface_water  |>filter(name == "Bell Hill Rd"))$depth_adjust02 <= 0.01], na.rm = T)
 
-argonaut_offset <- mean((surface_water |> filter(name == "Argonaut Rd"))$depth_adjust02[(surface_water |> filter(name == "Argonaut Rd"))$depth_adjust02 <= 0.062], na.rm = T)
+argonaut_offset <- mean((surface_water|> filter(name == "Argonaut Rd"))$depth_adjust02[(surface_water  |>filter(name == "Argonaut Rd"))$depth_adjust02 <= 0.062], na.rm = T)
 
-sodabay_offset <- mean((surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02[(surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02 <= 0.087], na.rm = T)
+sodabay_offset <- mean((surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02[(surface_water  |>filter(name == "Soda Bay Rd"))$depth_adjust02 <= 0.087], na.rm = T)
 
-adoberes_offset <- mean((surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02 <= 0.059], na.rm = T)
+adoberes_offset <- mean((surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02[(surface_water  |>filter(name == "Adobe Reservoir"))$depth_adjust02 <= 0.059], na.rm = T)
 
-highlandspringsres_offset <- mean((surface_water |> filter(name == "Highland Springs Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Highland Springs Reservoir"))$depth_adjust02 <= -0.086], na.rm = T)
+highlandspringsres_offset <- mean((surface_water  |>filter(name == "Highland Springs Reservoir"))$depth_adjust02[(surface_water  |>filter(name == "Highland Springs Reservoir"))$depth_adjust02 <= -0.086], na.rm = T)
 ```
 
+Then we perform a vertical transformation with this value
 ```{r}
-surface_water <- surface_water |> 
+surface_water <- surface_water  |>
   mutate(depth_adjust03 = case_when(
     # The following numbers are derived from the maximum "zero flow" values across whole record for each transducer
     name == "Bell Hill Rd" ~ depth_adjust02 - bellhill_offset,
@@ -490,18 +272,12 @@ surface_water <- surface_water |>
     name == "Adobe Reservoir" ~ depth_adjust02 - adoberes_offset,
     name == "Highland Springs Reservoir" ~ depth_adjust02 - highlandspringsres_offset,
     T ~ depth_adjust02
-  )) |> 
-  mutate(
-    depth_adjust03 = case_when(
-      name == "Bell Hill Rd" & depth_adjust03 <= 0.0759 ~ 0,
-      name == "Argonaut Rd" & depth_adjust03 < 0.0768 ~ 0,
-      name == "Soda Bay Rd" & depth_adjust03 <= 0.0753 ~ 0,
-      name == "Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
-      name == "Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
-      T ~ depth_adjust03
-    )) 
+  ))
+```
 
-ggplot(data = surface_water, aes(x = datetime, y = depth_adjust03, color = name)) + 
+Dry values should now oscillate around 0 ft of depth 
+```{r, echo = FALSE}
+transducer_all <- ggplot(data = surface_water, aes(x=datetime, y=depth_adjust03, color=name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -509,28 +285,69 @@ ggplot(data = surface_water, aes(x = datetime, y = depth_adjust03, color = name)
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "QC - Vertical Oscillation Adjustments",
+    title = "Raw Stage Data on Adobe Creek",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
   ) 
 
+transducer_all
+# ggplotly(transducer_all)
+```
+
+Looks great. 
+
+Now we assign all values less than or equal to the maximum observed depth among these dry conditions oscillations for each transducer to zero. 
+```{r}
+surface_water <- surface_water|>
+  mutate(
+  depth_adjust03 = case_when(
+    name == "Bell Hill Rd" & depth_adjust03 <= 0.0759 ~ 0,
+    name == "Argonaut Rd" & depth_adjust03 < 0.0768 ~ 0,
+    name == "Soda Bay Rd" & depth_adjust03 <= 0.0753 ~ 0,
+    name == "Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
+    name == "Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
+    T ~ depth_adjust03
+  )) 
 ```
 
 ```{r}
-# Something odd is happening at Argonaut starting in August of 2023, lasting until the first rains of WY 2024 in December 2023. Sudden, high oscillation recordings while other gages show 0 flow, and precipitation record shows no precipitation. Let's replace values between the pattern starting (08/15/2023) and first real flows of WY 2024 (12/19/2023). 
-# 
-surface_water <- surface_water |> 
+transducer_all <- ggplot(data = surface_water, aes(x=datetime, y=depth_adjust03, color=name)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "Raw Stage Data on Adobe Creek",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  ) 
+
+transducer_all
+# ggplotly(transducer_all)
+```
+
+Looks good! 
+
+Something odd is happening at Argonaut starting in August of 2023, lasting until the first rains of WY 2024 in December 2023. Sudden, high oscillation recordings while other gages show 0 flow, and precipitation record shows no precipitation. Let's replace values between the pattern starting (08/15/2023) and first real flows of WY 2024 (12/19/2023). 
+
+```{r}
+surface_water <- surface_water  |>
   mutate(depth_adjust04 = 
            case_when(
              name == "Argonaut Rd" & 
                datetime > as.POSIXct("2023-08-16 00:00:00", tz="America/Los_Angeles") &
                datetime < as.POSIXct("2023-12-19 09:15:00", tz="America/Los_Angeles") ~ 
                0,
-             T ~ depth_adjust03
-           ))
+    T ~ depth_adjust03
+  ))
+```
 
-ggplot(data = surface_water |> filter(name == "Argonaut Rd"), aes(x=datetime, y=depth_adjust04, color=name)) + 
+```{r, echo = FALSE}
+transducer_all <- ggplot(data = surface_water, aes(x=datetime, y=depth_adjust04, color=name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -538,61 +355,110 @@ ggplot(data = surface_water |> filter(name == "Argonaut Rd"), aes(x=datetime, y=
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "QC - Update to Argonaut Rd",
+    title = "Raw Stage Data on Adobe Creek",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
   ) 
+
+transducer_all
+# ggplotly(transducer_all)
 ```
 
-### Data Exploration
+The data looks clean, but the sharp peaks make it more difficult to ascertain trends on a longer time interval. To remedy this, we will apply a 7 day moving average to the data.
 
-#### Smoothed Data (Moving Average)
-
-The data looks clean, but the sharp peaks make it more difficult to
-ascertain trends on a longer time interval. To remedy this, we will
-apply a 7 day moving average to the data.
+### Smoothed Data (Moving Average)
 
 ```{r}
-surface_water <- surface_water |> 
-  group_by(name) |> 
+surface_water <- surface_water  |>
+  group_by(name)  |>
   mutate(
-    depth_07dMA = zoo::rollmean(depth_adjust04, 672, fill=NA),
-    depth_01dMA = zoo::rollmean(depth_adjust04, 96, fill=NA)
-  )
-
-ggplot(data = surface_water, aes(x = datetime, y = depth_07dMA, color = name)) + 
-  geom_line() + 
-  theme_light() +
-  scale_color_brewer(type = 'qual', palette = 'Dark2') +
-  scale_x_datetime(date_labels = "%b '%y",
-                   date_breaks = "2 months") +
-  theme(axis.text.x = element_text(size = 7, angle = 45)) +
-  labs(
-    title = "7-Day Moving Average Stage",
-    y = "Depth (ft)",
-    color = "Gage Location",
-    x = "Date"
-  )
-
-ggplot(data = surface_water, aes(x = datetime, y = depth_01dMA, color = name)) + 
-  geom_line() + 
-  theme_light() +
-  scale_color_brewer(type = 'qual', palette = 'Dark2') +
-  scale_x_datetime(date_labels = "%b '%y",
-                   date_breaks = "2 months") +
-  theme(axis.text.x = element_text(size = 7, angle = 45)) +
-  labs(
-    title = "1-Day (24 hour) Moving Average Stage",
-    y = "Depth (ft)",
-    color = "Gage Location",
-    x = "Date"
+    depth_07dMA = rollmean(depth_adjust04, 672, fill=NA),
+    depth_01dMA = rollmean(depth_adjust04, 96, fill=NA)
   )
 ```
 
+```{r, echo = FALSE}
+tranducer_7dMA <- ggplot(data = surface_water, aes(x=datetime, y=depth_07dMA, color=name)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "7-Day Moving Average Stage on Adobe Creek",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  )
+
+tranducer_1dMA <- ggplot(data = surface_water, aes(x=datetime, y=depth_01dMA, color=name)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "1-Day (24 hour) Moving Average Stage on Adobe Creek",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  )
+
+tranducer_7dMA
+tranducer_1dMA
+# ggplotly(tranducer_7dMA)
+# ggplotly(tranducer_1dMA)
+```
+
+This 7-day moving average makes trends on a week time interval clearer and also better illustrates trends between the monitoring locations. To further interrogate relationships between monitoring locations, we take a look at mean monthly stages across the sites.
+
+7 day moving avg figure for report 
 ```{r}
-#save output
-AdobeCreekTransducers_BVR_Depth_Cleaned <- surface_water |> 
+tranducer_7dMA <- ggplot(data = surface_water  |>filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")), aes(x=datetime, y=depth_07dMA, color=name)) + 
+  geom_line() + 
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   date_minor_breaks = "1 month",
+                   limits = c(as.POSIXct("2018-12-15 0:00:00", tz="America/Los_Angeles"), as.POSIXct("2023-09-01 0:00:00", tz="America/Los_Angeles"))) +
+  labs(
+    title = "7-Day Moving Average Depth  on Adobe Creek",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  ) + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0.5, margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in")),
+        axis.title.x = element_blank(),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+tranducer_7dMA
+
+# ggsave(
+#   "Figs/report/SW/Adobe_7dMA.png",
+#   tranducer_7dMA,
+#   device = "png",
+#   width = 7,
+#   height = 4.6,
+#   units = "in"
+# )
+```
+
+
+### Saving Out Cleaned Surface Water Transducer data 
+```{r}
+AdobeCreekTransducers_BVR_Depth_Cleaned <- surface_water  |>
   mutate(
     PT_id = case_when(
       name == "Bell Hill Rd" ~ "AdobePT03_BVR",
@@ -601,7 +467,7 @@ AdobeCreekTransducers_BVR_Depth_Cleaned <- surface_water |>
       name == "Adobe Reservoir" ~ "AdobePT05_BVR",
       name == "Highland Springs Reservoir" ~ "AdobePT04_BVR"
     )
-  ) |> 
+  )  |>
   select(-c(depth_adjust, depth_adjust02, depth_adjust03)) %>%
   rename(depth_ft_raw = depth_ft,
          depth_ft_cleaned = depth_adjust04,
@@ -610,33 +476,29 @@ AdobeCreekTransducers_BVR_Depth_Cleaned <- surface_water |>
          datetime_UTC = datetime)
 
 write_csv(AdobeCreekTransducers_BVR_Depth_Cleaned, here::here('data', 'surface_water', 'cleaned_deliverable','AdobeCreekTransducers_BVR_Depth_Cleaned.csv'))
-
 ```
 
-This 7-day moving average makes trends on a week time interval clearer
-and also better illustrates trends between the monitoring locations. To
-further interrogate relationships between monitoring locations, we take
-a look at mean monthly stages across the sites. TODO - does this
-happen??
 
-#### Water Surface Elevations
+### Adobe Creek WSE's
 
+CHANGE THIS TO INCLUDE THE RESERVOIR TRANSDUCERS. THIS REQUIRES TRANSDUCER ELEVATIONS. DO WE HAVE SURVEY ELEVATIONS FOR THESE TRANSDUCERS?
 ```{r}
-sw_wse <- surface_water |> 
+SW_WSE <- surface_water  |>
+  filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))  |>
   mutate(
     sensor_elev = case_when(
       name == "Argonaut Rd" ~ 1350.318,
       name == "Soda Bay Rd" ~ 1329.229,
-      name == "Adobe Reservoir" ~ 1420.6,
-      name == "Highland Springs Reservoir" ~ 1422.9,
       T ~ 1402.281
     ),
     WSE = sensor_elev + depth_adjust04,
     WSE_7dMA = sensor_elev + depth_07dMA,
     WSE_1dMA = sensor_elev + depth_01dMA
   )
+```
 
-ggplot(data = sw_wse, aes(x = datetime, y = WSE, color = name)) + 
+```{r, echo=FALSE}
+surface_wse <- ggplot(data = SW_WSE, aes(x=datetime, y=WSE, color=name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -644,68 +506,70 @@ ggplot(data = sw_wse, aes(x = datetime, y = WSE, color = name)) +
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "Water Surface Elevations",
+    title = "7-Day Moving Average Stage on Adobe Creek",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
   )
 
+surface_wse
+# ggplotly(surface_wse)
 ```
 
-#### Monthly Average Summary
 
-This graphic allows us to interrogate the relationships between stages
-at the 3 monitoring locations during the most important months for chi
-spawning.
+### Monthly Average Summary
 
 ```{r}
-spawning_months <- surface_water |> 
-  filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")) |> 
+spawning_months <- surface_water  |>
   mutate(
     month = format(datetime, "%m"),
     year = format(datetime, "%Y"),
     WY = ifelse(month %in% c("10","11","12"), as.numeric(year)+1, as.numeric(year))
-  ) |> 
-  filter(month %in% c("11","12","01","02","03","04","05","06")) |> 
+  )  |>
+  filter(month %in% c("11","12","01","02","03","04","05","06"))  |>
   mutate(month = factor(format(datetime, "%b"), levels = c("Nov", "Dec","Jan", "Feb", "Mar", "Apr", "May", "Jun")),
-         name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))) |> 
-  group_by(name, month) |> 
+         name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")))  |>
+  group_by(name, month)  |>
   summarize(
     mean = mean(depth_adjust04, na.rm = T)
-  ) |> 
+  )  |>
   ungroup()
+```
 
-ggplot(spawning_months, aes(x = month, y = mean, fill = name)) + 
+```{r, echo=FALSE}
+montly_mean_spawning <- ggplot(spawning_months, aes(x=month, y=mean, fill=name)) + 
   geom_col(position = "dodge") + 
   theme_light() +
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
   labs(x = "Month", y = "Mean Stage on Adobe Creek", fill = "Gage Location", title = "Mean Monthly Stage at 3 Adobe Creek Stage Gaging Sites \n2019-2023")
 
+montly_mean_spawning
 ```
 
-**Wetter years clearly have a different pattern**
+This graphic allows us to interrogate the relationships between stages at the 3 monitoring locations during the most important months for chi spawning.
+
+Kind of interested to look at this relationship for each year...
 
 ```{r}
-spawning_months_by_WY <- surface_water |> 
-  filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")) |> 
+spawning_months_by_WY <- surface_water  |>
   mutate(
     month = format(datetime, "%m"),
     year = format(datetime, "%Y"),
     WY = ifelse(month %in% c("10","11","12"), as.numeric(year)+1, as.numeric(year))
-  ) |> 
-  filter(month %in% c("12","01","02","03","04","05","06")) |> 
+  )  |>
+  filter(month %in% c("12","01","02","03","04","05","06"))  |>
   mutate(month = factor(format(datetime, "%b"), levels = c("Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun")),
-         name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))) |> 
-  group_by(WY, name, month) |> 
+         name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")))  |>
+  group_by(WY, name, month)  |>
   summarize(
     mean = mean(depth_adjust04, na.rm = T)
-  ) |> 
-  ungroup() |> 
+  )  |>
+  ungroup()  |>
   filter(! is.na(name))
 ```
 
 ```{r}
-ggplot(spawning_months_by_WY |> filter(WY == 2019), aes(x=month, y=mean, fill=name)) + 
+monthavg2019 <- ggplot(spawning_months_by_WY  |>filter(WY == 2019), aes(x=month, y=mean, fill=name)) + 
   geom_col(position = "dodge") + 
   theme_light() +
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
@@ -724,7 +588,7 @@ ggplot(spawning_months_by_WY |> filter(WY == 2019), aes(x=month, y=mean, fill=na
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
-ggplot(spawning_months_by_WY |> filter(WY == 2020), aes(x=month, y=mean, fill=name)) + 
+monthavg2020 <- ggplot(spawning_months_by_WY  |>filter(WY == 2020), aes(x=month, y=mean, fill=name)) + 
   geom_col(position = "dodge") + 
   theme_light() +
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
@@ -743,7 +607,7 @@ ggplot(spawning_months_by_WY |> filter(WY == 2020), aes(x=month, y=mean, fill=na
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
-ggplot(spawning_months_by_WY |> filter(WY == 2021), aes(x=month, y=mean, fill=name)) + 
+monthavg2021 <- ggplot(spawning_months_by_WY  |>filter(WY == 2021), aes(x=month, y=mean, fill=name)) + 
   geom_col(position = "dodge") + 
   theme_light() +
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
@@ -762,7 +626,7 @@ ggplot(spawning_months_by_WY |> filter(WY == 2021), aes(x=month, y=mean, fill=na
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
-ggplot(spawning_months_by_WY |> filter(WY == 2022), aes(x=month, y=mean, fill=name)) + 
+monthavg2022 <- ggplot(spawning_months_by_WY  |>filter(WY == 2022), aes(x=month, y=mean, fill=name)) + 
   geom_col(position = "dodge") + 
   theme_light() +
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
@@ -781,7 +645,7 @@ ggplot(spawning_months_by_WY |> filter(WY == 2022), aes(x=month, y=mean, fill=na
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
-ggplot(spawning_months_by_WY |> filter(WY == 2023), aes(x=month, y=mean, fill=name)) + 
+monthavg2023 <- ggplot(spawning_months_by_WY  |>filter(WY == 2023), aes(x=month, y=mean, fill=name)) + 
   geom_col(position = "dodge") + 
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
   labs(x = "Month", y = "Average Depth (ft)", fill = "Gage Location", title = "2023") + 
@@ -798,21 +662,64 @@ ggplot(spawning_months_by_WY |> filter(WY == 2023), aes(x=month, y=mean, fill=na
         legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+# ggsave(
+#   "Figs/report/StageMonthlyAvg_2019.png",
+#   monthavg2019,
+#   device = "png",
+#   width = 3.75,
+#   height = 2.75,
+#   units = "in"
+# )
+# 
+# ggsave(
+#   "Figs/report/StageMonthlyAvg_2020.png",
+#   monthavg2020,
+#   device = "png",
+#   width = 3.75,
+#   height = 2.75,
+#   units = "in"
+# )
+# 
+# ggsave(
+#   "Figs/report/StageMonthlyAvg_2021.png",
+#   monthavg2021,
+#   device = "png",
+#   width = 3.75,
+#   height = 2.75,
+#   units = "in"
+# )
+# 
+# ggsave(
+#   "Figs/report/StageMonthlyAvg_2022.png",
+#   monthavg2022,
+#   device = "png",
+#   width = 3.75,
+#   height = 2.75,
+#   units = "in"
+# )
+# 
+# ggsave(
+#   "Figs/report/StageMonthlyAvg_2023.png",
+#   monthavg2023,
+#   device = "png",
+#   width = 3.75,
+#   height = 2.75,
+#   units = "in"
+# )
 ```
 
-#### Flow-Stage Plot Generation
+Wetter years clearly have a different pattern
 
-A bit of a stand-in for a rating curve. Just plotting our flow
-measurements with stages reported from the transducer in these
-locations.
-
+### Flow-Stage Plot Generation 
+A bit of a stand-in for a rating curve. Just plotting our flow measurements with stages reported from the transducer in these locations. 
 ```{r}
-stage_vs_flow <- stage_flow |> select(c("Site_Name", "Date", "Time", "Flow_cfs", "Corrected_Depth_ft", "WSE_ft-NAVD88"))|> 
+stage_vs_flow <- stage_flow |> select(c("Site_Name", "Date", "Time", "Flow_cfs", "Corrected_Depth_ft", "WSE_ft-NAVD88")) |>
   mutate(Date = as.Date(Date, format = "%m.%d.%Y"))
 ```
 
 ```{r}
-p_bellhill <- ggplot(stage_vs_flow |> filter(Site_Name == "Bell Hill Rd"), aes(y = Corrected_Depth_ft, x = Flow_cfs)) + 
+p_bellhill <- ggplot(stage_vs_flow |> filter(Site_Name == "Bell Hill Rd"), aes(y=Corrected_Depth_ft, x=Flow_cfs)) + 
   geom_point(size=2) + 
   labs(x = "Flow (cfs)", y="Depth (ft)", title="Flow v Depth at Bell Hill Road") + 
   scale_y_continuous(limits = c(0,4),
@@ -852,7 +759,7 @@ p_arg <- ggplot(stage_vs_flow |> filter(Site_Name == "Argonaut Rd"), aes(y=Corre
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
-p_sodabay <- ggplot(stage_vs_flow |> filter(Site_Name == "Soda Bay Rd"), aes(y=Corrected_Depth_ft, x=Flow_cfs)) +  
+p_sodabay <- ggplot(stage_vs_flow  |>filter(Site_Name == "Soda Bay Rd"), aes(y=Corrected_Depth_ft, x=Flow_cfs)) +  
   geom_point(size=2) + 
   labs(x = "Flow (cfs)", y="Depth (ft)", title="Flow v Depth at Soda Bay Road") + 
   scale_y_continuous(limits = c(0,2),
@@ -875,12 +782,38 @@ p_sodabay <- ggplot(stage_vs_flow |> filter(Site_Name == "Soda Bay Rd"), aes(y=C
 p_bellhill
 p_arg
 p_sodabay
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'FlowVDepth_BellHill.png'),
+  p_bellhill,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'FlowVDepth_Argonaut.png'),   
+  p_arg,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'FlowVDepth_SodaBay.png'),   
+  p_sodabay,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
 ```
 
 ### Data Quality Figures
 
-Highlighting inherent noise and uncertainty
-
+Highlighting inherent noise and uncertainty 
 ```{r}
 p_base_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust04, color=name)) + 
   geom_line() + 
@@ -914,12 +847,11 @@ p_base_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), a
 
 p_base_noise
 ```
+This pattern seems to occur when depth levels off, such as following a storm. 
 
-This pattern seems to occur when depth levels off, such as following a
-storm. Intensified oscillations in 2023 season on Bell Hill.
-
+Intensified oscillations in 2023 season on Bell Hill
 ```{r}
-p_worse_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust04, color=name)) + 
+p_worse_noise <- ggplot(data = surface_water  |>filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust04, color=name)) + 
   geom_line() + 
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
   scale_x_datetime(date_labels = "%m/%d",
@@ -949,15 +881,11 @@ p_worse_noise <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), 
 
 p_worse_noise
 ```
+We can see that this oscillation is much worse in 2023. Some oscillations are almost 0.5 feet! This is not a real physical phenomenon. 
 
-We can see that this oscillation is much worse in 2023. Some
-oscillations are almost 0.5 feet! This is not a real physical
-phenomenon.
-
-Zero water depth oscillations
-
+Zero water depth osciallations 
 ```{r}
-p_zeroflow_noise <- ggplot(data = surface_water |> filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")), aes(x=datetime, y=depth_adjust02, color=name)) + 
+p_zeroflow_noise <- ggplot(data = surface_water  |>filter(name %in% c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd")), aes(x=datetime, y=depth_adjust02, color=name)) + 
   geom_line() + 
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
   scale_x_datetime(date_labels = "%m/%d",
@@ -987,12 +915,11 @@ p_zeroflow_noise <- ggplot(data = surface_water |> filter(name %in% c("Bell Hill
 p_zeroflow_noise
 ```
 
-**Argonaut Error in 2023**
-
+Argonaut Error in 2023
 ```{r}
-p_argonaut_error <- ggplot(data = surface_water|> filter(name == "Argonaut Rd"), aes(x=datetime, y=depth_adjust02, color="Argonaut")) + 
+p_argonaut_error <- ggplot(data = surface_water |>filter(name == "Argonaut Rd"), aes(x=datetime, y=depth_adjust02, color="Argonaut")) + 
   geom_line() + 
-  geom_line(data = surface_water|> filter(name == "Soda Bay Rd"), aes(color="Soda Bay")) +
+  geom_line(data = surface_water |>filter(name == "Soda Bay Rd"), aes(color="Soda Bay")) +
   scale_color_manual(name = "", values = c("Argonaut" = "#D95F02", "Soda Bay" = "#7570B3")) + 
   scale_x_datetime(date_labels = "%m/%d",
                    date_breaks = "1 week",
@@ -1022,10 +949,9 @@ p_argonaut_error <- ggplot(data = surface_water|> filter(name == "Argonaut Rd"),
 p_argonaut_error
 ```
 
-**Bell Hill Sudden Datum Shift**
-
+Bell Hill Sudden Datum Shift 
 ```{r}
-p_bellhill_datumshift <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_ft, color=name)) + 
+p_bellhill_datumshift <- ggplot(data = surface_water  |>filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_ft, color=name)) + 
   geom_line() + 
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
   scale_x_datetime(date_labels = "%m/%d",
@@ -1056,12 +982,61 @@ p_bellhill_datumshift <- ggplot(data = surface_water |> filter(name == "Bell Hil
 p_bellhill_datumshift
 ```
 
-### Reservoir Figures
+Save out all of these figures
+```{r}
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'data_quality', 'AdobeOscillation_Normal.png'),     
+  p_base_noise,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'data_quality', 'AdobeOscillation_2023.png'),    
+  p_worse_noise,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'data_quality', 'NoFlow_Noise.png'),    
+  p_zeroflow_noise,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'data_quality', 'Argonaut_BadData.png'),   
+  p_argonaut_error,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+
+ggsave(
+  here::here('data','surface_water', 'figures',  'report', 'data_quality', 'BellHill_DatumShift.png'),   
+  p_bellhill_datumshift,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+```
+
+
+### Reservoir Figures 
 
 ```{r}
-p_reservoir_data <- ggplot(data = surface_water |> filter(name == "Adobe Reservoir"), aes(x=datetime, y=depth_adjust04, color= "Adobe Reservoir")) + 
+p_reservoir_data <- ggplot(data = surface_water  |>filter(name == "Adobe Reservoir"), aes(x=datetime, y=depth_adjust04, color= "Adobe Reservoir")) + 
   geom_line() + 
-  geom_line(data = surface_water |> filter(name == "Highland Springs Reservoir"), aes(x=datetime, y=depth_adjust04, color= "Highland Springs Reservoir")) + 
+  geom_line(data = surface_water  |>filter(name == "Highland Springs Reservoir"), aes(x=datetime, y=depth_adjust04, color= "Highland Springs Reservoir")) + 
   scale_color_manual(name = "", values = c("Adobe Reservoir" = "#e7298a", "Highland Springs Reservoir" = "#66a61e")) + 
   scale_x_datetime(date_labels = "%m/%d",
                    date_breaks = "2 weeks",
@@ -1089,4 +1064,104 @@ p_reservoir_data <- ggplot(data = surface_water |> filter(name == "Adobe Reservo
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
 
 p_reservoir_data
+
+ggsave(
+ here::here('data','surface_water', 'figures',  'report', 'data_quality', 'reserviors_cleaned.png'), 
+  p_reservoir_data,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
 ```
+
+```{r}
+knitr::knit_exit()
+```
+
+The following code isn't working because we don't have an estimate of well02's base elevation
+## Kelsey Creek Well 04: {.tabset}
+### GW v SW
+```{r}
+surf_ground_kelsey <- ggplot(SW_kelsey_kelseyville_USGS, aes(x=Datetime, y=WSE, color = "Surface Water - USGS Gage 11449500")) +
+  geom_line(size = 1) +
+  geom_line(data = well04  |>filter(! is.na(depth_adjusted)),
+            aes(x=datetime, y=1498.56 - depth_adjusted, color = "Groundwater - BV EPA (Kelsey Creek Drive)"),
+            size = 1,
+            ) +
+  #annotate("rect", xmin = as.POSIXct("2023-01-23 12:00:00"), xmax = as.POSIXct("2023-02-27 07:15:00"), ymin = 1310, ymax = 1336, alpha = 0.2) +
+  #annotate("text", x= as.POSIXct("2023-02-12 12:00:00"), y = 1334, label = "            ") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month",
+                   limits = c(as.POSIXct("2022-09-01 00:00:00"),as.POSIXct("2023-12-13 00:00:00"))) +
+  scale_color_manual(values = c("Surface Water - USGS Gage 11449500" = "deepskyblue3", "Groundwater - BV EPA (Kelsey Creek Drive)" = "coral")) +
+  # scale_y_continuous(limits = c(1310, 1336),
+  #                    breaks = seq(1310, 1335, 5),
+  #                    minor_breaks = seq(1310, 1335, 2.5)) +
+  labs(x="Date",
+       title = "Groundwater v Surface Water Elevations, Kelsey Creek Drive",
+       y = "Elevation (ft NAVD 88)",
+       color = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8, angle = 45, vjust = 0.75),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.75, b = 0.25, l = 0, unit = "in")
+  )
+
+surf_ground_kelsey
+
+ggsave(
+  "Figs/report/synthesis/kelsey_GWSW_comparison.png",
+  surf_ground_kelsey,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+```
+
+## Adobe Reservoir Release
+```{r}
+plot <- ggplot(surface_water  |>filter(name %in% c("Argonaut Rd", "Soda Bay Rd", "Adobe Reservoir")), aes(x=datetime, y=depth_adjust04, color = name)) + 
+  geom_line(size=1) + 
+  geom_line(data = SW_bellhill_WB, aes(x=Date, y = `Depth (ft)`, color = "Bell Hill Rd"), size=1) + 
+  scale_x_datetime(date_labels = "%m/%d",
+                   date_breaks = "1 day",
+                   limits = c(as.POSIXct("2023-06-06 00:00:00"),as.POSIXct("2023-06-09 12:00:00"))) + 
+  scale_colour_manual(breaks = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd", "Adobe Reservoir"),values = c("#1b9e77", "#d95f02", "#7570b3","#e7298a")) +
+  scale_y_continuous(limits = c(NA, 2)) +
+  labs(x= "Date", y = "Depth (ft)", title="Adobe Creek Response to Adobe Reservoir Releases, 2023") +
+  theme_minimal() +
+  theme(panel.grid.major = element_line(colour = "grey70", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in")
+  )
+
+#ggplotly(plot)
+plot
+
+ggsave(
+  "Figs/report/SW/AdobeReservoirRelease.png",
+  plot,
+  device = "png",
+  width = 6,
+  height = 4,
+  units = "in"
+)
+```
+
