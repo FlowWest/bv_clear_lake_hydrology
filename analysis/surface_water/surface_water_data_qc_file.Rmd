@@ -3,7 +3,7 @@ title: "Surface Water Data QC"
 author: "Maddee Wiggins"
 date: "`r Sys.Date()`"
 output: 
-  github_document:
+  html_document:
       toc: true
 #   html_document:
 #     code_folding: hide
@@ -20,6 +20,7 @@ library(tidyverse)
 #remotes::install_github("flowwest/CDECRetrieve")
 library(CDECRetrieve)
 library(dataRetrieval)
+library(plotly)
 
 
 knitr::opts_chunk$set(
@@ -96,240 +97,11 @@ ggplot(data = surface_water, aes(x = datetime, y = depth_ft, color = name)) +
   facet_wrap(~name, scales = "free_y")
 ```
 
-### NEW DATA QC
-
-**Description of New Data** - new data was uploaded for `2024-09-06`
-
-**Description of QC**
-
--   Zero flow oscillations were similar in the new 2024 data from Adobe
-    Reservoir, Highland Springs Reservoir, and Soda Bay Road. For these
-    sites, we will calculate a new zero flow vertical offset for all the
-    data.
--   Bell Hill Rd
--   Argonaut Rd
-
-```{r}
-
-new_data <- c(
-  'Adobe Reservoir Outlet_Append_2024-09-06_12-37-57-838-BaroMerge.csv',
-  'Argonaut_Append_2024-09-06_13-25-29-804-BaroMerge.csv',
-  'Bell Hill_Append_2024-09-06_12-58-21-777-BaroMerge.csv',
-  'Highland Springs Outlet_Append_2024-09-06_13-09-48-628-BaroMerge.csv',
-  'Soda Bay_Append_2024-09-06_11-46-00-928-BaroMerge.csv'
-)
-
-# Extract the iteration(s) corresponding to the new data
-new_data_iterations <- surface_water |> 
-  filter(file_name %in% new_data) |> 
-  pull(iteration) |> 
-  unique()
-
-# Get the previous iteration(s)
-previous_iterations <- new_data_iterations - 2
-
-# Combine the new data with the corresponding previous data
-new_data_and_previous_data <- surface_water |> 
-  filter(iteration >= previous_iterations) 
-
-# plot
-ggplot(new_data_and_previous_data, aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom")
-
-
-```
-
-#### Adobe Reservoir
-
-```{r}
-adobe <- new_data_and_previous_data |> 
-  filter(name == "Adobe Reservoir") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(adobe)
-
-```
-
-**Notes**
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Highland Springs Reservoir
-
-```{r}
-highland <- new_data_and_previous_data |> 
-  filter(name == "Highland Springs Reservoir") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(highland)
-
-```
-
-**Notes**
-
--   large spikes are from reservoir releases
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Soda Bay Rd
-
-```{r}
-soda <- new_data_and_previous_data |> 
-  filter(name == "Soda Bay Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(soda)
-
-```
-
-**Notes**
-
--   zero flow oscillations look similar between the older and newer data
-
--   Options for next steps:
-
-    1)  use the same offset that was previously used
-
-    2)  calculate a new one based on the no-flow of the new data
-
-    **3) calculate a new offset based on all the data (most
-    consistent)**
-
-#### Bell Hill Rd
-
-```{r}
-bell <- new_data_and_previous_data |> 
-  filter(name == "Bell Hill Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(bell)
-
-```
-
-**Notes**
-
--   TODO: look at larger time series and see if majority of zero flow
-    values are similar - If similar, use previous methodology to create
-    new offset if not, create offset based off new data
-
--   Does 7-22 spike correlate with releases in highland springs
-    reservoir? Probably related to reservoir release from 7-19
-
-#### Argonaut Rd
-
-```{r}
-arg <- surface_water |> 
-  filter(name == "Argonaut Rd") |> 
-  ggplot(aes(datetime, y = depth_ft)) +
-  geom_line(aes(color = as.factor(iteration))) +
-  theme_minimal() +
-  facet_wrap(~name, ncol = 2) + 
-  theme(strip.text = element_text(size = 10),
-        legend.position = "bottom") 
-
-ggplotly(arg)
-
-```
-
-**Notes**
-
--   high oscillations in low flow; evident where it goes from bad
-    oscillation data to good measurements. Cut out high oscillation
-    during low flow and make it zero.
-
--   use prior season vertical transformations
-
-##### Identify any datum shifts
-
-```{r}
-# function
-flag_datum_shift <- function(data, threshold = 1.0) {
-  data |> 
-    group_by(name) |> 
-    arrange(datetime) |> 
-    mutate(
-      diff = c(NA, diff(depth_ft)),  
-      flagged = ifelse(abs(diff) > threshold, TRUE, FALSE)  
-    )
-}
-
-threshold <- 1  # Adjust threshold 
-flagged_data <- flag_datum_shift(new_data_and_previous_data, threshold)
-
-ggplot(flagged_data, aes(x = datetime, y = depth_ft)) +
-  geom_line() +
-  geom_point(data = flagged_data %>% filter(flagged), 
-             aes(x = datetime, y = depth_ft), 
-             color = "red", size = 3, shape = 8) +
-  labs(x = "Time",
-       y = "Depth (ft)",
-       title = "Datum Shift Detection",
-       subtitle = paste("Threshold for datum shift =", threshold, "ft")) +
-  theme_minimal() +
-  facet_wrap(~name)
-
-flagged_data |>  
-  filter(flagged) |> 
-  select(name, datetime, depth_ft, diff, file_name) 
-
-```
-
-##### Other QC issues
-
-**fix issues here and describe**
-
-##### Replace QC'd data in final dataset
-
-```{r}
-surface_water <- surface_water |> 
-  filter(!(file_name %in% new_data_and_previous_data$file_name)) |> 
-  bind_rows(new_data_and_previous_data)
-
-```
-
 ### Previous QC
+
+This analysis was performed for dates 2018 to 2023 and explained in
+detail in the report: [Big Valley Subbasin Data Analysis]
+Memo)(<https://drive.google.com/drive/folders/1BEqdToXQf_QLfxsGzzDk_xE1Dk31Bnow>)
 
 ```{r echo=FALSE}
 tibble(
@@ -360,6 +132,13 @@ tibble(
 ```
 
 #### Datum Shift
+
+```{r}
+# only look at data reported in the 2023 report (ends 11/13/23)
+surface_water <- surface_water |> 
+  filter(datetime <= '2023-11-13')
+
+```
 
 ```{r}
 surface_water <- surface_water |> 
@@ -543,6 +322,291 @@ ggplot(data = surface_water |> filter(name == "Argonaut Rd"), aes(x=datetime, y=
     color = "Gage Location",
     x = "Date"
   ) 
+```
+
+### NEW 2024 DATA QC
+
+**Description of New Data** - new data was uploaded for `2024-09-06`
+
+**Description of QC**
+
+-   Zero flow oscillations were similar in the new 2024 data from Adobe
+    Reservoir, Highland Springs Reservoir, and Soda Bay Road. For these
+    sites, we will calculate a new zero flow vertical offset for all the
+    data.
+-   Bell Hill Rd
+-   Argonaut Rd: used the same methodology as previous analysis to perform the offset 
+
+```{r}
+# this is all the new data: 
+new_surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS')) |> 
+  filter(datetime > '2023-11-13')
+
+```
+
+```{r}
+# this pulls the new and some of the older data to do manual QC
+new_data <- c(
+  'Adobe Reservoir Outlet_Append_2024-09-06_12-37-57-838-BaroMerge.csv',
+  'Argonaut_Append_2024-09-06_13-25-29-804-BaroMerge.csv',
+  'Bell Hill_Append_2024-09-06_12-58-21-777-BaroMerge.csv',
+  'Highland Springs Outlet_Append_2024-09-06_13-09-48-628-BaroMerge.csv',
+  'Soda Bay_Append_2024-09-06_11-46-00-928-BaroMerge.csv'
+)
+
+# Extract the iteration(s) corresponding to the new data
+new_data_iterations <- surface_water |> 
+  filter(file_name %in% new_data) |> 
+  pull(iteration) |> 
+  unique()
+
+# Get the previous iteration(s)
+previous_iterations <- new_data_iterations - 2
+
+# Combine the new data with the corresponding previous data
+new_data_and_previous_data <- surface_water |> 
+  filter(iteration >= previous_iterations) 
+
+# plot
+ggplot(new_data_and_previous_data, aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = as.factor(iteration))) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom")
+
+
+```
+
+#### Adobe Reservoir
+
+-   zero flow oscillations look similar between the older and newer data
+-   **QC performed:** Calculate a new offset based on all the data
+
+```{r}
+adobe <- new_data_and_previous_data |> 
+  filter(name == "Adobe Reservoir") |> 
+  ggplot(aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = as.factor(iteration))) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(adobe)
+
+```
+
+#### Highland Springs Reservoir
+
+-   large spikes are from reservoir releases
+
+-   zero flow oscillations look similar between the older and newer data
+
+-   **QC performed:** Calculate a new offset based on all the data
+
+```{r}
+highland <- new_data_and_previous_data |> 
+  filter(name == "Highland Springs Reservoir") |> 
+  ggplot(aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = as.factor(iteration))) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(highland)
+
+```
+
+#### Soda Bay Rd
+
+-   zero flow oscillations look similar between the older and newer data
+
+-   **QC performed:** Calculate a new offset based on all the data
+
+```{r}
+soda <- new_data_and_previous_data |> 
+  filter(name == "Soda Bay Rd") |> 
+  ggplot(aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = as.factor(iteration))) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(soda)
+
+```
+
+#### Bell Hill Rd
+
+-   Reservoir releases from 7-19 are likely the result of the spike around 7-22    
+
+-   **QC performed:**: The updated data had similar zero flow oscillations so we used the entire data series to calculate the vertical transformation. 
+
+
+```{r}
+bell <- new_data_and_previous_data |> 
+  filter(name == "Bell Hill Rd") |> 
+  ggplot(aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = as.factor(iteration))) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(bell)
+
+```
+
+#### Argonaut Rd
+
+-   high oscillations in low flow; evident where it goes from bad
+    oscillation data to good measurements.
+
+-   **QC performed:** Cut out high oscillation during low flow and make
+    it zero and use prior season vertical transformations
+
+```{r}
+arg <- surface_water |> 
+  filter(name == "Argonaut Rd") |> 
+  ggplot(aes(datetime, y = depth_ft)) +
+  geom_line(aes(color = as.factor(iteration))) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(arg)
+
+```
+
+### Peform QC on sites
+
+```{r}
+# all data 
+surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS')) 
+```
+
+```{r}
+# consistent with what was done with previous data:
+surface_water <- surface_water |> 
+  mutate(depth_adjust = 
+           case_when(
+             name == "Bell Hill Rd" & 
+               datetime > as.POSIXct("2022-08-15 07:30:00", tz="America/Los_Angeles") & 
+               datetime < as.POSIXct("2022-12-07 15:30:00", tz="America/Los_Angeles") ~ 
+               0, #only way casewhen() will take NA value???
+             name == "Bell Hill Rd" & 
+               datetime > as.POSIXct("2022-12-07 7:45:00", tz="America/Los_Angeles") & 
+               datetime < as.POSIXct("2023-06-10 15:00:00", tz="America/Los_Angeles") ~ 
+               depth_ft - 1.9,
+             T ~ depth_ft
+           ))
+
+surface_water <- surface_water |> 
+  mutate(depth_adjust02 = 
+           case_when(
+             name == "Bell Hill Rd" & 
+               datetime > as.POSIXct("2023-04-05 08:00:00", tz="America/Los_Angeles") &
+               datetime < as.POSIXct("2023-06-10 15:00:00", tz="America/Los_Angeles") ~
+               NA_real_,
+             name == "Bell Hill Rd" & 
+               datetime >= as.POSIXct("2023-09-01 08:00:00", tz="America/Los_Angeles") &
+               datetime < as.POSIXct("2023-09-27 09:00:00", tz="America/Los_Angeles") ~ 
+               0,
+             T ~ depth_adjust
+           ))
+
+```
+
+#### Calculate new offsets 
+
+```{r}
+bellhill_offset_updated <- mean((surface_water |> filter(name == "Bell Hill Rd"))$depth_adjust02[(surface_water |> filter(name == "Bell Hill Rd"))$depth_adjust02 <= 0.01], na.rm = T)
+
+argonaut_offset_updated <- mean((surface_water |> filter(name == "Argonaut Rd"))$depth_adjust02[(surface_water |> filter(name == "Argonaut Rd"))$depth_adjust02 <= 0.062], na.rm = T)
+
+sodabay_offset_updated <- mean((surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02[(surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02 <= 0.087], na.rm = T)
+
+adoberes_offset_updated <- mean((surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02 <= 0.059], na.rm = T)
+
+highlandspringsres_offset_updated <- mean((surface_water |> filter(name == "Highland Springs Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Highland Springs Reservoir"))$depth_adjust02 <= -0.086], na.rm = T)
+```
+
+Compare offsets
+
+| Site                       | Old Offset                    | New Offset                            |
+|------------------------|------------------------|------------------------|
+| Bell Hill                  | `r bellhill_offset`   | `r bellhill_offset_updated`           |
+| Argonaut                   | `r argonaut_offset`   | `r argonaut_offset_updated`           |
+| Soda Bay                   | `r sodabay_offset`    | `r sodabay_offset_updated`            |
+| Adobe Reservoir            | `r adoberes_offset`   | `r adoberes_offset_updated`           |
+| Highland Springs Reservoir | `r highlandspringsres_offset` | `r highlandspringsres_offset_updated` |
+
+```{r}
+surface_water <- surface_water |> 
+  mutate(depth_adjust03 = case_when(
+    # The following numbers are derived from the maximum "zero flow" values across whole record for each transducer
+    name == "Bell Hill Rd" ~ depth_adjust02 - bellhill_offset_updated,
+    name == "Argonaut Rd" ~ depth_adjust02 - argonaut_offset_updated,
+    name == "Soda Bay Rd" ~ depth_adjust02 - sodabay_offset_updated,
+    # Following values are based on an offset that will make the lowest oscillations oscillate around zero.
+    name == "Adobe Reservoir" ~ depth_adjust02 - adoberes_offset_updated,
+    name == "Highland Springs Reservoir" ~ depth_adjust02 - highlandspringsres_offset_updated,
+    T ~ depth_adjust02
+  )) |> 
+  mutate(
+    depth_adjust03 = case_when(
+      name == "Bell Hill Rd" & depth_adjust03 <= 0.0759 ~ 0,
+      name == "Argonaut Rd" & depth_adjust03 < 0.0768 ~ 0,
+      name == "Soda Bay Rd" & depth_adjust03 <= 0.0753 ~ 0,
+      name == "Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
+      name == "Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
+      T ~ depth_adjust03
+    )) 
+
+surface_water <- surface_water |> 
+  mutate(depth_adjust04 = 
+           case_when(
+             name == "Argonaut Rd" & 
+               datetime > as.POSIXct("2023-08-16 00:00:00", tz="America/Los_Angeles") &
+               datetime < as.POSIXct("2023-12-19 09:15:00", tz="America/Los_Angeles") ~ 
+               0,
+             T ~ depth_adjust03
+           ))
+```
+
+#### Plot QC'd sites
+
+```{r}
+all_sites_with_qc <- surface_water |> 
+  ggplot() +
+  geom_line(aes(datetime, y = depth_adjust04, color = "post-QC")) +
+    geom_line(aes(datetime, y = depth_ft, color = "pre-QC")) +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(all_sites_with_qc)
+```
+
+```{r}
+all_sites_qc <- surface_water |> 
+  ggplot(aes(datetime, y = depth_adjust04)) +
+  geom_line() +
+  theme_minimal() +
+  facet_wrap(~name, ncol = 2) + 
+  theme(strip.text = element_text(size = 10),
+        legend.position = "bottom") 
+
+ggplotly(all_sites_qc)
+```
+
+```{r}
+saveRDS(surface_water, here::here("data", "surface_water", "cleaned_surface_water.RDS"))
 ```
 
 ### Data Exploration
