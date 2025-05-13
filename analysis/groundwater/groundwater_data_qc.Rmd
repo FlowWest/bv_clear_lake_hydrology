@@ -1,0 +1,518 @@
+---
+title: "groundwater_data_qc"
+author: "Maddee Rubenson (FlowWest)"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(zoo)
+library(plotly)
+```
+
+**Timeframe**
+-   previous recods - 2023 timeframe: 2021-08-19 to 2023-04-20
+-   new data timeframe: 2021-09-03 to 2025-01-13
+
+**Description**
+Groundwater Data: Depth sensors are in wells on private property throughout Adobe Basin.
+
+### Access BVR EPA Data:
+
+```{r}
+source(here::here('analysis', 'groundwater', 'run_groundwater_files.R'))
+```
+
+Summary table of groundwater data aggregated to date
+
+```{r}
+groundwater_updated |> 
+  group_by(well_id) |> 
+  summarise(min_date = min(datetime),
+            max_date = max(datetime)) |> 
+  knitr::kable()
+```
+
+### Access 3rd-Party Data
+
+```{r eval=FALSE, include=FALSE}
+# TODO: unable to access Egnyte and get these files.. 
+GW_bellhill_CL_A1 <- readxl::read_xlsx("../Groundwater/County_Wells/Bell_Hill/Big Valley GSA - 13N-09W-30A1.xlsx", col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
+  mutate(Date = as.POSIXct(Date, format = "%Y-%m-%d", tz = "America/Los_Angeles"))
+
+GW_bellhill_CL_J1 <- readxl::read_xlsx("../Groundwater/County_Wells/Bell_Hill/Big Valley GSA - 13N-09W-19J1.xlsx", col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
+  mutate(Date = as.POSIXct(Date, format = "%Y-%m-%d", tz = "America/Los_Angeles"))
+
+GW_sodabay_CL_G2 <- readxl::read_xlsx("../Groundwater/County_Wells/Soda_Bay/Big Valley GSA - 14N-09W-32G2.xlsx", col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
+  mutate(Date = as.POSIXct(Date, format = "%Y-%m-%d", tz = "America/Los_Angeles"))
+
+```
+
+```{r, echo=FALSE}
+ground_all <- ggplot(data = groundwater_updated, aes(x=datetime, y=depth_to_gw, color=well_id)) + 
+  geom_line(alpha=0.7) + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse()+
+  # scale_y_continuous(limits = c(5, 45), breaks = c(5,10,15,20,25,30,35,40,45)) +
+  labs(
+    title = "Raw Preliminary Depth to Groundwater",
+    y = "Depth (ft)",
+    x = "Date",
+    color = "Well ID"
+  ) 
+
+ggplotly(ground_all)
+```
+
+This data is very messy. Upon detailed examination of each well sensor's data, it is clear that each sensor needs a unique approach to data cleaning. The following section shows this process for each well sensor. 
+
+Quick visualization of each well to use in data memo 
+note that I'm using the new well names for these figures, but not in the following analysis
+```{r}
+p_raw_AdobeGW03_BVR <- ggplot((groundwater_updated |> filter(well_id == "001")), aes(x=datetime, y=depth_to_gw)) + 
+  geom_line(color = "#1B9E77", size = 0.25) + 
+  scale_y_reverse(limits=(c(NA,0)))+
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +  
+  labs(y = "Depth to Groundwater (ft)", title = "AdobeGW03_BVR") +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0),
+        axis.title.x = element_blank(),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_raw_KelseyGW02_BVR <- ggplot((groundwater_updated |> filter(well_id == "002")), aes(x=datetime, y=depth_to_gw)) + 
+  geom_line(color = "#d95f02", size = 0.25) + 
+  scale_y_reverse(limits=(c(NA,0)))+
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +  
+  labs(y = "Depth to Groundwater (ft)", title = "KelseyGW02_BVR") +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0),
+        axis.title.x = element_blank(),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_raw_AdobeGW02_BVR <- ggplot((groundwater_updated |> filter(well_id == "003")), aes(x=datetime, y=depth_to_gw)) + 
+  geom_line(color = "#7570b3", size = 0.25) + 
+  scale_y_reverse(limits=(c(NA,0)))+
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +  
+  labs(y = "Depth to Groundwater (ft)", title = "AdobeGW02_BVR") +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0),
+        axis.title.x = element_blank(),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_raw_AdobeGW01_BVR <- ggplot((groundwater_updated |> filter(well_id == "004")), aes(x=datetime, y=depth_to_gw)) + 
+  geom_line(color = "#e7298a", size = 0.25) + 
+  scale_y_reverse(limits=(c(NA,0)))+
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +  
+  labs(y = "Depth to Groundwater (ft)", title = "AdobeGW01_BVR") +  
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0),
+        axis.title.x = element_blank(),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_raw_KelseyGW01_BVR <- ggplot((groundwater_updated |> filter(well_id == "005")), aes(x=datetime, y=depth_to_gw)) + 
+  geom_line(color = "#66a61e", size = 0.25) + 
+  scale_y_reverse(limits=(c(NA,0)))+
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +
+  labs(y = "Depth to Groundwater (ft)", title = "KelseyGW01_BVR") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0),
+        axis.title.x = element_blank(),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_raw_AdobeGW03_BVR
+p_raw_KelseyGW02_BVR
+p_raw_AdobeGW02_BVR
+p_raw_AdobeGW01_BVR
+p_raw_KelseyGW01_BVR
+```
+
+
+### Data Cleaning 
+
+#### Well 01 - Bell Hill Rd:
+
+**2023 data processing**
+-   Well 01 has a few outlier observations that are most likely the sensor misfiring and taking an erroneous recording. We pass the data through a simple outlier removal function to remedy this. 
+
+```{r}
+well01 <- groundwater_updated |> 
+  filter(well_id == "001") |> 
+  mutate(
+    depth_02hMM = rollapply(depth_to_gw, width = 8, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted = ifelse(
+      abs(depth_02hMM - depth_to_gw) < 1,
+      depth_to_gw,
+      depth_02hMM
+    )
+  ) |> 
+  select(-depth_02hMM)
+```
+
+```{r}
+plot_well01 <- ggplot(well01, aes(x=datetime, y=depth_adjusted)) + 
+  geom_line(color = "#1B9E77") + 
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well01)
+```
+
+Looks good! 
+
+#### Well 02 - Kelsey Creek Dr:
+
+**2023 data processing**
+-   simple outlier filter 
+-   There seem to be eroneous signals below 10 from February to June 2022. Let's filter those out
+```{r}
+well02 <- groundwater_updated |> 
+  filter(well_id == "002") |> 
+  mutate(
+    depth_04hMM = rollapply(depth_to_gw, width = 16, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted = ifelse(
+      abs(depth_04hMM - depth_to_gw) < 1,
+      depth_to_gw,
+      depth_04hMM
+    )
+  ) |> 
+  select(-depth_04hMM)
+```
+
+```{r}
+plot_well02 <- ggplot(well02, aes(x=datetime, y=depth_adjusted)) + 
+  geom_line(color = "#D95F02") + 
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well02)
+```
+
+
+```{r}
+## There seem to be eroneous signals below 10 from February to June 2022. Let's filter those out
+well02 <- well02 |> 
+  mutate(
+    depth_adjusted = ifelse(datetime > as.POSIXct("2022-02-01") & datetime < as.POSIXct("2022-06-30") & depth_adjusted < 13, NA, depth_adjusted)
+  )
+```
+
+```{r}
+plot_well02 <- ggplot(well02 |> filter(! is.na(depth_adjusted)), aes(x=datetime, y=depth_adjusted)) + 
+  geom_line(color = "#D95F02") + 
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 month") +
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well02)
+```
+
+#### Well 03 - Argonaut Rd:
+
+**2023 data processing**
+-   This well is especially messy, with simple outlier values like we see in Well 01, but also with these oscillating "plateau" patterns, making it extremely difficult to distinguish between legitimate observations and erroneous ones. 
+
+-   As a first pass, I'm going to apply an outlier function very similar to the one used for Well 01. 
+
+```{r}
+well03 <- groundwater_updated |> 
+  filter(well_id == "003") |> 
+  mutate(
+    depth_06hMM = rollapply(depth_to_gw, width = 24, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted = ifelse(
+      abs(depth_06hMM - depth_to_gw) < 1,
+      depth_to_gw,
+      depth_06hMM
+    )
+  ) |> 
+  select(-depth_06hMM)
+```
+
+```{r}
+plot_well03 <- ggplot(well03, aes(x=datetime, y=depth_adjusted)) + 
+  geom_line(color = "#7570B3") + 
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well03)
+```
+
+Still looks very odd. Let's compare against water level to stream flows at argonaut to see if this clears up what is a erroneous record and what is not. 
+
+```{r}
+plot_arg <- ggplot(well03, aes(x=datetime, y= 1373.36 - depth_adjusted)) + 
+  geom_line(color = "blue") +
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) 
+  # TODO: where does SW_WSE get sourced?
+  #geom_line(data = SW_WSE |> filter(name == "Argonaut Rd"), aes(x=datetime, y=WSE), color = "red")
+
+ggplotly(plot_arg)
+```
+
+From this it appears that when the creek is dry, the record get's super wonky. The readings when the creek has water and there is precipitation seem more trustworthy.
+
+#### Well 04 - Soda Bay Rd:
+
+**2023 data processing**
+-   The first thing to notice when looking at the raw data of Well 04 are the extreme oscillations all throughout the dataset. The sensor is regularly recording observations at ~5 feet below the surface, which is likely an error. Because this well is not operational, Anthony believes this may be an object 5 feet into the well that regularly is detected instead of the actual water surface. The real water surface never appears to get this high. To remedy this, we will filter out all observations below a certain threshold (determine to be 6.52 feet)
+
+```{r}
+well04 <- groundwater_updated |> 
+  filter(well_id == "004") |> 
+  mutate(
+    depth_adjusted = ifelse(depth_to_gw <= 6.52, NA, depth_to_gw)
+  )
+```
+
+```{r}
+plot_well04 <- ggplot(well04 |> filter(! is.na(depth_adjusted)), aes(x=datetime, y=depth_adjusted)) + 
+  geom_line(color = "#E7298A") + 
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well04)
+```
+
+Looking at the adjusted dataset, we see that 2023 becomes a challenging area as the real water surface rises close to the erroneous water surface recordings. Examining this area closely, it becomes clear that the real water surface does not rise to 10 feet below surface until atleast March 14th. We will remove all observations above this level before this date. 
+
+Looking at dates before 2023, it is clear to see a similar outlier pattern seen in well01. To remedy this we will apply a similar outlier removal function
+
+```{r}
+well04 <- well04 |> 
+  mutate(
+    depth_adjusted = ifelse(datetime < as.POSIXct("2023-03-14 00:00:00") & depth_adjusted <= 10, NA, depth_adjusted),
+    depth_8hMM = rollapply(depth_adjusted, width = 32, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted = 
+      ifelse(
+        abs(depth_8hMM - depth_adjusted) < 1,
+        depth_adjusted,
+        depth_8hMM),
+    depth_24hMM = rollapply(depth_adjusted, width = 96, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted02 =
+      ifelse(
+        abs(depth_24hMM - depth_adjusted) < 1,
+        depth_adjusted,
+        depth_24hMM),
+    depth_2dMM = rollapply(depth_adjusted, width = 192, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted03 = 
+      ifelse(
+        is.na(depth_adjusted02),
+        depth_2dMM,
+        depth_adjusted02)
+    ) #|> 
+  #select(-depth_8hMM)
+```
+
+```{r}
+ggplotly(plot_well04 <- ggplot(well04, aes(x=datetime, y=depth_adjusted)) +
+  geom_line(color = "#E7298A") + 
+    geom_line(aes(x=datetime, y=depth_adjusted03), color = "chartreuse3") +
+  geom_line(aes(x=datetime, y=depth_adjusted02), color = "blue") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 month") +
+  scale_y_reverse())
+
+```
+
+```{r}
+well04 <- well04 |> 
+  select(-c("depth_adjusted", "depth_adjusted03", "depth_8hMM", "depth_24hMM", "depth_2dMM")) |> 
+  rename(depth_adjusted = depth_adjusted02)
+```
+
+
+Looks better. Still some area for improvement in mid 2023.
+
+#### Well 05 - Steelhead Dr:
+
+Skipping for now
+```{r}
+well05 <- groundwater_updated |> 
+  filter(well_id == "005") |> 
+  mutate(depth_adjusted = NA)
+```
+
+#### Individual well figures 
+```{r}
+p_AdobeGW03_BVR <- ggplot(well01, aes(x=datetime, y = depth_adjusted)) + 
+  geom_line(color = "#1b9e77") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +
+  scale_y_reverse(limits=c(NA,0))+
+  labs(
+    title = "AdobeGW03_BVR, Cleaned Record",
+    y = "Depth to Groundwater (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.25, b = 0.25, l = 0, unit = "in"))
+
+p_AdobeGW02_BVR <- ggplot(well03, aes(x=datetime, y = depth_adjusted)) + 
+  geom_line(color = "#7570b3") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +
+  scale_y_reverse(limits=c(NA,0))+
+  labs(
+    title = "AdobeGW02_BVR, Cleaned Record",
+    y = "Depth to Groundwater (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.25, b = 0.25, l = 0, unit = "in"))
+
+p_AdobeGW01_BVR <- ggplot(well04 |> filter(! is.na(depth_adjusted)), aes(x=datetime, y = depth_adjusted)) + 
+  geom_line(color = "#e7298a") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +
+  scale_y_reverse(limits=c(NA,0))+
+  labs(
+    title = "AdobeGW01_BVR, Cleaned Record",
+    y = "Depth to Groundwater (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.25, b = 0.25, l = 0, unit = "in"))
+
+p_KelseyGW02_BVR <- ggplot(well02 |> filter(! is.na(depth_adjusted)), aes(x=datetime, y = depth_adjusted)) + 
+  geom_line(color = "#d95f02") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "3 months",
+                   minor_breaks = "1 month") +
+  scale_y_reverse(limits=c(NA,0))+
+  labs(
+    title = "KelseyGW02_BVR, Cleaned Record",
+    y = "Depth to Groundwater (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.25, b = 0.25, l = 0, unit = "in"))
+
+p_AdobeGW03_BVR
+p_AdobeGW02_BVR
+p_AdobeGW01_BVR
+p_KelseyGW02_BVR
+```

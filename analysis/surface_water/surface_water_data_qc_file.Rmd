@@ -621,7 +621,7 @@ surface_water <- surface_water |>
 ```
 
 
-```{r include=FALSE}
+```{r eval=FALSE, include=FALSE}
 # THIS IS A TEST to see how automated offsets impacted results 
 surface_water <- surface_water |> 
   mutate(depth_adjust03 = case_when(
@@ -778,6 +778,12 @@ ggplot(data = surface_water |>
 
 ```{r}
 saveRDS(surface_water, here::here("data", "surface_water", "cleaned_surface_water.RDS"))
+
+# sent to Big Valley on 4/29
+surface_water |> 
+  select(name, datetime, pressure_psi, temperature_f, depth_ft_qc = depth_adjust04) |> 
+  write_csv(here::here("data", "surface_water", "cleaned_surface_water_data_042025.csv"))
+
 ```
 
 ```{r}
