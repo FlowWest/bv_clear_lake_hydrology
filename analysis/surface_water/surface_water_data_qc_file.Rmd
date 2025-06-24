@@ -694,7 +694,7 @@ all_sites_qc <- surface_water |>
   theme(strip.text = element_text(size = 10),
         legend.position = "bottom") 
 
-ggsave(filename = 'all_sites_qcd.png', here::here("analysis", "surface_water", "2024_figs", "all_sites_qcd.png"))
+#ggsave(filename = 'all_sites_qcd.png', here::here("analysis", "surface_water", "2024_figs", "all_sites_qcd.png"))
 
 #ggplotly(all_sites_qc)
 #all_sites_qc
@@ -779,10 +779,12 @@ ggplot(data = surface_water |>
 ```{r}
 saveRDS(surface_water, here::here("data", "surface_water", "cleaned_surface_water.RDS"))
 
+surface_water <- readRDS(here::here("data", "surface_water", "cleaned_surface_water.RDS"))
+
 # sent to Big Valley on 4/29
 surface_water |> 
-  select(name, datetime, pressure_psi, temperature_f, depth_ft_qc = depth_adjust04) |> 
-  write_csv(here::here("data", "surface_water", "cleaned_surface_water_data_042025.csv"))
+  select(name, datetime, pressure_psi, temperature_f, depth_ft_raw = depth_ft, depth_ft_qc = depth_adjust04) |> 
+  write_csv(here::here("data", "surface_water", "cleaned_surface_water_data_052025.csv"))
 
 ```
 
@@ -888,6 +890,8 @@ sw_wse <- surface_water |>
     WSE_7dMA = sensor_elev + depth_07dMA,
     WSE_1dMA = sensor_elev + depth_01dMA
   )
+
+saveRDS(sw_wse, here::here("data", "surface_water", "sw_wse_2024.RDS"))
 
 ggplot(data = sw_wse, aes(x = datetime, y = WSE, color = name)) + 
   geom_line() + 

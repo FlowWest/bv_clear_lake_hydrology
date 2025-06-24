@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(zoo)
 library(plotly)
+library(dataRetrieval)
 ```
 
 **Timeframe**
@@ -26,6 +27,13 @@ Groundwater Data: Depth sensors are in wells on private property throughout Adob
 source(here::here('analysis', 'groundwater', 'run_groundwater_files.R'))
 ```
 
+```{r}
+# from surface_water_data_qc_file.Rmd
+SW_WSE <- readRDS(here::here("data", "surface_water", "sw_wse_2024.RDS"))
+
+surface_water <- readRDS(here::here("data", "surface_water", "cleaned_surface_water.RDS"))
+```
+
 Summary table of groundwater data aggregated to date
 
 ```{r}
@@ -38,16 +46,28 @@ groundwater_updated |>
 
 ### Access 3rd-Party Data
 
-```{r eval=FALSE, include=FALSE}
-# TODO: unable to access Egnyte and get these files.. 
-GW_bellhill_CL_A1 <- readxl::read_xlsx("../Groundwater/County_Wells/Bell_Hill/Big Valley GSA - 13N-09W-30A1.xlsx", col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
+```{r echo=TRUE}
+GW_bellhill_CL_A1 <- readxl::read_xlsx(here::here("data-raw", "groundwater", "County_Wells","Bell_Hill","Big Valley GSA - 13N-09W-30A1.xlsx"), col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
   mutate(Date = as.POSIXct(Date, format = "%Y-%m-%d", tz = "America/Los_Angeles"))
 
-GW_bellhill_CL_J1 <- readxl::read_xlsx("../Groundwater/County_Wells/Bell_Hill/Big Valley GSA - 13N-09W-19J1.xlsx", col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
+GW_bellhill_CL_J1 <- readxl::read_xlsx(here::here("data-raw", "groundwater", "County_Wells","Bell_Hill", "Big Valley GSA - 13N-09W-19J1.xlsx"), col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
   mutate(Date = as.POSIXct(Date, format = "%Y-%m-%d", tz = "America/Los_Angeles"))
 
-GW_sodabay_CL_G2 <- readxl::read_xlsx("../Groundwater/County_Wells/Soda_Bay/Big Valley GSA - 14N-09W-32G2.xlsx", col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
+GW_sodabay_CL_G2 <- readxl::read_xlsx(here::here("data-raw", "groundwater", "County_Wells", "Soda_Bay", "Big Valley GSA - 14N-09W-32G2.xlsx"), col_types = c("text", "numeric", "numeric", "numeric", "numeric", "text"), skip=2) |> 
   mutate(Date = as.POSIXct(Date, format = "%Y-%m-%d", tz = "America/Los_Angeles"))
+
+clearlake_level <- readNWISdv("11450000", "00065","2007-10-01", Sys.Date()) |> 
+  mutate(WSE = X_00065_00003 + 1318.26,
+         Date = as.POSIXct(Date, tz = "America/Los_Angeles"))
+
+SW_kelsey_kelseyville_USGS <- read_csv(here::here('data-raw', 'surface_water', 'kelsey_kelseyville_usgs_stage_20240201.csv'))  |>
+  mutate(Datetime = as.POSIXct(Datetime, format = "%m/%d/%Y %H:%M", tz = "America/Los_Angeles"),
+         WSE = Stage + 1475.44)
+
+SW_bellhill_WB <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'water_board', 'PressureTransducer_and_Flow_Data_20230728.xlsx'), 
+                                    sheet = "AC4-2023 Data", skip = 8)  |>
+  mutate(Date = as.POSIXct(`Date Time (UTC)`),
+         Date = with_tz(Date, "America/Los_Angeles"))
 
 ```
 
@@ -189,18 +209,28 @@ p_raw_KelseyGW01_BVR
 #### Well 01 - Bell Hill Rd:
 
 **2023 data processing**
--   Well 01 has a few outlier observations that are most likely the sensor misfiring and taking an erroneous recording. We pass the data through a simple outlier removal function to remedy this. 
+-   Well 01 has a few outlier observations that are most likely the sensor misfiring and taking an erroneous recording. 
+We pass the data through a simple outlier removal function to remedy this. 
+
+**2024 data processing**
+-   2024-08-25 there is an ~4 hour point in time where the sensor seems to be misfiring, leaving a large outlier spike. This occurred from 2024-08-25 7:33 to 9:03. These values will be reflected as `NA`. 
 
 ```{r}
 well01 <- groundwater_updated |> 
   filter(well_id == "001") |> 
   mutate(
-    depth_02hMM = rollapply(depth_to_gw, width = 8, FUN = median, na.rm = T, fill = c(NA)),
+    # 2 hour moving median
+    # meant to deal with instantaneous outliers (one-offs)
+    depth_02hMM = rollapply(depth_to_gw, width = 8, FUN = median, na.rm = T, fill = c(NA)), 
+    # if less than 1 use the observation, if not use the median value 
     depth_adjusted = ifelse(
       abs(depth_02hMM - depth_to_gw) < 1,
       depth_to_gw,
       depth_02hMM
     )
+  ) |> 
+  mutate(
+    depth_adjusted = ifelse(datetime > as.POSIXct("2024-08-25", tz = "UTC") & datetime < as.POSIXct("2024-08-26", tz = "UTC") & depth_adjusted < 7, NA, depth_adjusted)
   ) |> 
   select(-depth_02hMM)
 ```
@@ -224,11 +254,29 @@ Looks good!
 
 **2023 data processing**
 -   simple outlier filter 
--   There seem to be eroneous signals below 10 from February to June 2022. Let's filter those out
+-   There seem to be erroneous signals below 10 from February to June 2022. Let's filter those out
+
+**2024 data processing**
+-   Fixed the following spikes in depth to groundwater: 
+  -   erroneous drop at 2023-11-25 to 11-27
+  -   same with 4/7 and 5/11 for 2024
+
+-   Sudden datum shift 9-18-2024
+  -   We explored surface water dataset and the USGS gage at Kelsey Creek to see if there was a spike in surface water around this time due to precipitation and there was not. 
+      The USGS gage was around 4 CFS. 
+  -   There still seems to be an oscillation but unsure why there is a datum shift; seems like an error
+  -   Likely throw this data out since it seems wrong or there is an interference in the pipe
+
+**Hypotheses for the sudden shift:**
+- has tube been dislodged? or something is wrong with the equipment
+  - if the microphone tube was dislodged, it wouldn't be visible when the data was downloaded 
+- could be real? groundwater could be high from past three years of wet years; could see a downward shift soon? Cameron thinks this is unlikely because of the sudden, almost instantaenous shift 
+
 ```{r}
 well02 <- groundwater_updated |> 
   filter(well_id == "002") |> 
   mutate(
+    # 4 hour outlier filter 
     depth_04hMM = rollapply(depth_to_gw, width = 16, FUN = median, na.rm = T, fill = c(NA)),
     depth_adjusted = ifelse(
       abs(depth_04hMM - depth_to_gw) < 1,
@@ -256,16 +304,15 @@ ggplotly(plot_well02)
 ```{r}
 ## There seem to be eroneous signals below 10 from February to June 2022. Let's filter those out
 well02 <- well02 |> 
-  mutate(
-    depth_adjusted = ifelse(datetime > as.POSIXct("2022-02-01") & datetime < as.POSIXct("2022-06-30") & depth_adjusted < 13, NA, depth_adjusted)
-  )
+  mutate(depth_adjusted = ifelse(datetime > as.POSIXct("2022-02-01", tz = "UTC") & datetime < as.POSIXct("2022-06-30", tz = "UTC") & depth_adjusted < 13, NA, depth_adjusted)) |> 
+  mutate(depth_adjusted = ifelse(datetime > as.POSIXct("2023-11-24", tz = "UTC") & datetime < as.POSIXct("2024-05-12", tz = "UTC") & depth_adjusted > 20, NA, depth_adjusted))
 ```
 
 ```{r}
 plot_well02 <- ggplot(well02 |> filter(! is.na(depth_adjusted)), aes(x=datetime, y=depth_adjusted)) + 
   geom_line(color = "#D95F02") + 
   scale_x_datetime(date_labels = "%b '%y",
-                   date_breaks = "2 month") +
+                   date_breaks = "6 month") +
   geom_vline(
     xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
     color      = "black",
@@ -282,6 +329,10 @@ ggplotly(plot_well02)
 -   This well is especially messy, with simple outlier values like we see in Well 01, but also with these oscillating "plateau" patterns, making it extremely difficult to distinguish between legitimate observations and erroneous ones. 
 
 -   As a first pass, I'm going to apply an outlier function very similar to the one used for Well 01. 
+
+**2024 data processing**
+-   Same pattern is continuing where there seems to be a datum shift between wet and dry seasons
+TODO: pull in most up to date Soda Bay Rd data in SW_WSE and identify the wet season - plot periods of the wet season behind the well data to display the differences between the wet and dry seasons on Adobe Creek
 
 ```{r}
 well03 <- groundwater_updated |> 
@@ -310,18 +361,18 @@ plot_well03 <- ggplot(well03, aes(x=datetime, y=depth_adjusted)) +
 ggplotly(plot_well03)
 ```
 
-Still looks very odd. Let's compare against water level to stream flows at argonaut to see if this clears up what is a erroneous record and what is not. 
+Still looks very odd. Let's compare against water level to stream flows at Argonaut to see if this clears up what is a erroneous record and what is not. 
 
 ```{r}
-plot_arg <- ggplot(well03, aes(x=datetime, y= 1373.36 - depth_adjusted)) + 
+plot_arg <- ggplot(well03, aes(x=datetime, y = 1373.36 - depth_adjusted)) + 
   geom_line(color = "blue") +
   geom_vline(
     xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
     color      = "black",
     linetype   = "dashed"
-  ) 
-  # TODO: where does SW_WSE get sourced?
-  #geom_line(data = SW_WSE |> filter(name == "Argonaut Rd"), aes(x=datetime, y=WSE), color = "red")
+  ) +
+  geom_line(data = SW_WSE |> filter(name == "Argonaut Rd"), aes(x=datetime, y=WSE), color = "red") +
+  geom_line(data = SW_WSE |> filter(name == "Soda Bay Rd"), aes(x=datetime, y=WSE), color = "darkgreen")
 
 ggplotly(plot_arg)
 ```
@@ -332,6 +383,9 @@ From this it appears that when the creek is dry, the record get's super wonky. T
 
 **2023 data processing**
 -   The first thing to notice when looking at the raw data of Well 04 are the extreme oscillations all throughout the dataset. The sensor is regularly recording observations at ~5 feet below the surface, which is likely an error. Because this well is not operational, Anthony believes this may be an object 5 feet into the well that regularly is detected instead of the actual water surface. The real water surface never appears to get this high. To remedy this, we will filter out all observations below a certain threshold (determine to be 6.52 feet)
+
+**2024**
+-   This well was discontinued 
 
 ```{r}
 well04 <- groundwater_updated |> 
@@ -406,11 +460,88 @@ Looks better. Still some area for improvement in mid 2023.
 
 #### Well 05 - Steelhead Dr:
 
-Skipping for now
+**2023**
+-   Skipping for now - type III noise and limited time and budget 
+
+**2024 Data Processing**
+-    TODO: pull in USGS lake level data for Clear Lake (elev: 1320.74 feet)
+  - add elevation to Clear Lake data to get the water surface elevation 
+  - find the ground elevation at the well location; subtract out the depth to groundwater from the ground elevation
+- Sarah: seems like the data is not useful and should find a new location 
 ```{r}
 well05 <- groundwater_updated |> 
   filter(well_id == "005") |> 
+  mutate(
+    depth_1hMM = rollapply(depth_to_gw, width = 4, FUN = median, na.rm = T, fill = c(NA)),
+    depth_adjusted = ifelse(
+      abs(depth_1hMM - depth_to_gw) < 1,
+      depth_to_gw,
+      depth_1hMM
+    ) 
+  ) 
+```
+
+```{r}
+plot_well05 <- ggplot(well05, aes(x=datetime, y=depth_1hMM)) + 
+  geom_line(color = "darkred") + 
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well05)
+
+```
+
+Explore the WSE of Clear Lake compared to the gage data 
+
+**Thoughts**
+- Tried to derive insights on the correlation between the well data and the lake levels and there is no clear pattern between the two. 
+- Is it realistic for the groundwater to stay fairly consistent at this location given the proximity to the lake? Based off of the Groundwater Sustainability Plan, no.
+- Groundwater well is located next to a pond - is the well picking up the pond level which is staying relatively constant? https://maps.app.goo.gl/XhanF1USeBsF1ZsA8
+
+```{r}
+# groundwater well elevation ~ 1325
+well05_wse <- well05 |> 
+  mutate(WSE = 1325 - depth_1hMM )
+
+clearlake <- clearlake_level |> 
+  filter(year(Date) > 2021) 
+  
+clearlake_wse_plot <- ggplot() + 
+  geom_line(data = well05_wse, aes(x = datetime, y = WSE), color = "darkred") + 
+  geom_line(data = clearlake, aes(x = Date, y = WSE), color = "darkblue")
+
+ggplotly(clearlake_wse_plot)
+  
+
+```
+
+#### Well 06 - CJ Olsen
+
+**2024 update**
+This is a new well as of 2024-11-14; skipping the data processing for now
+
+```{r}
+well06 <- groundwater_updated |> 
+  filter(well_id == "006") |> 
   mutate(depth_adjusted = NA)
+```
+
+```{r}
+plot_well06 <- ggplot(well06, aes(x=datetime, y=depth_to_gw)) + 
+  geom_line(color = "darkgreen") + 
+  geom_vline(
+    xintercept = as.POSIXct("2024-01-01", tz = "UTC"),
+    color      = "black",
+    linetype   = "dashed"
+  ) +
+  scale_y_reverse()
+
+ggplotly(plot_well06)
+
 ```
 
 #### Individual well figures 
@@ -516,3 +647,461 @@ p_AdobeGW02_BVR
 p_AdobeGW01_BVR
 p_KelseyGW02_BVR
 ```
+
+### Bringing Data Back Together
+```{r}
+ground_water_processed <- 
+  bind_rows(well01, well02, well03, well04, well05, well06)
+  
+```
+
+visualize data together
+```{r}
+plot_groundwater_processed <- ggplot(data = ground_water_processed |> 
+                                       filter(! is.na(depth_adjusted)), 
+                                     aes(x=datetime, y=depth_adjusted, color=well_id)) + 
+  geom_line(alpha=0.7) + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse()+
+  # scale_y_continuous(limits = c(5, 45), breaks = c(5,10,15,20,25,30,35,40,45)) +
+  labs(
+    title = "Preliminary Depth to Groundwater",
+    y = "Depth (ft)",
+    x = "Date",
+    color = "Well ID"
+  ) 
+
+ggplotly(plot_groundwater_processed)
+```
+
+
+### Smoothing Processed Data (Moving Averages)
+
+```{r}
+ground_water_processed <- ground_water_processed |> 
+  group_by(well_id) |>
+  # TODO: where is the rolling mean width coming from? 
+  mutate(depth_07dMA = rollapply(depth_adjusted, width = 1344, FUN = mean, na.rm = T, fill = c(NA)),
+         depth_01dMA = rollapply(depth_adjusted, width = 96, FUN = mean, na.rm = T, fill = c(NA))) 
+```
+
+```{r, echo=FALSE}
+plot_GW_processed_smooth <- ggplot(data = ground_water_processed |> 
+                                     filter(! is.na(depth_07dMA)), 
+                                   aes(x=datetime, y=depth_07dMA, color=well_id)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse()+
+  # scale_y_continuous(limits = c(5, 45), breaks = c(5,10,15,20,25,30,35,40,45)) +
+  labs(
+    title = "Depth to Groundwater, 7 Day Rolling Average",
+    y = "Depth to Groundwater (ft)",
+    x = "Date",
+    color = "Well ID"
+  ) 
+
+ggplotly(plot_GW_processed_smooth)
+```
+
+```{r, echo=FALSE}
+plot_MA1hr <- ggplot(data = ground_water_processed |> filter(! is.na(depth_01dMA)), aes(x=datetime, y=depth_01dMA, color=well_id)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse()+
+  # scale_y_continuous(limits = c(5, 45), breaks = c(5,10,15,20,25,30,35,40,45)) +
+  labs(
+    title = "Depth to Groundwater, 1 day Rolling Average",
+    y = "Depth to Groundwater (ft)",
+    x = "Date",
+    color = "Well ID"
+  )
+
+ggplotly(plot_MA1hr)
+```
+
+**2023 Data Note:** The 7-day rolling average is likely giving too much weight to bad data that still needs to be cleaned
+
+### Saving Out Cleaned Groundwater Data 
+```{r}
+BigValleyWellSensors_BVR_DepthToGW_Cleaned <- ground_water_processed |> 
+  mutate(
+    well_id = case_when(
+      well_id == "001" ~ "AdobeGW03_BVR",
+      well_id == "002" ~ "KelseyGW02_BVR",
+      well_id == "003" ~ "AdobeGW02_BVR",
+      well_id == "004" ~ "AdobeGW01_BVR",
+      well_id == "005" ~ "KelseyGW01_BVR"
+    )
+  ) |> 
+  rename(
+    depth_to_gw_cleaned = depth_adjusted,
+    depth_to_gw_cleaned_7dMA = depth_07dMA,
+    depth_to_gw_cleaned_1dMA = depth_01dMA,
+    datetime_UTC = datetime
+  )
+
+#write_csv(BigValleyWellSensors_BVR_DepthToGW_Cleaned, "../Groundwater/Groundwater_Sensors_BVR/data/cleaned_deliverable/BigValleyWellSensors_BVR_DepthToGW_Cleaned.csv")
+```
+
+
+### Adobe Creek Ground Water Elevations
+
+```{r}
+ground_water_adobe <- ground_water_processed |> 
+  filter(well_id %in% c("001", "003","004")) |> 
+  mutate(
+    # TODO: are these elevations the same? 
+    well_elev = case_when(
+      well_id == "001" ~ 1409.78,
+      well_id == "003" ~ 1373.36,
+      T ~ 1344.93
+    ),
+    gw_elev = well_elev - depth_adjusted,
+    gw_elev_7dMA = well_elev - depth_07dMA,
+    gw_elev_1dMA = well_elev - depth_01dMA
+  )
+```
+
+```{r, echo=FALSE}
+adobe_gw_elev <- ggplot(data = ground_water_adobe |> 
+                          filter(! is.na(gw_elev)), 
+                        aes(x=datetime, y=gw_elev, color=well_id)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "Groundwater Elevations",
+    y = "Groundwater Elevation (ft NAVD88)",
+    x = "Date",
+    color = "Well ID"
+  ) 
+
+ggplotly(adobe_gw_elev)
+```
+
+### Data Quality Figures 
+
+Type I Noise figure at Well 01/ AdobeGW03_BVR (Bell Hill Rd)
+```{r}
+p_TypeINoise <- ggplot(data = groundwater_updated |> 
+                         filter(well_id == "001"), 
+                       aes(x=datetime, y=depth_to_gw, color=well_id)) + 
+  geom_line(color = "#1b9e77", size = 0.5) + 
+  scale_x_datetime(date_labels = "%m/%d",
+                   date_breaks = "1 day",
+                   minor_breaks = "1 day",
+                   limits = c(as.POSIXct("2022-07-23 0:00:00", tz="America/Los_Angeles"), as.POSIXct("2022-07-27 0:00:00", tz="America/Los_Angeles"))) +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse(limits=c(NA,0))+
+  labs(
+    title = "Type I noise at well AdobeGW03_BVR, 2022",
+    y = "Depth to Groundwater, Raw (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_TypeINoise
+```
+
+Type II Noise at Well 04/ AdobeGW01_BVR (Soda Bay Rd) 
+```{r}
+p_TypeIINoise <- ggplot(data = groundwater_updated |> filter(well_id == "004"), aes(x=datetime, y=depth_to_gw, color=well_id)) + 
+  geom_line(color = "#e7298a", size = 0.75) + 
+  scale_x_datetime(date_labels = "%m/%d",
+                   date_breaks = "1 week",
+                   minor_breaks = "1 day",
+                   limits = c(as.POSIXct("2022-08-06 0:00:00", tz="America/Los_Angeles"), as.POSIXct("2022-09-06 0:00:00", tz="America/Los_Angeles"))) +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse(limits=c(NA,0))+
+  # scale_y_continuous(limits = c(5, 45), breaks = c(5,10,15,20,25,30,35,40,45)) +
+  labs(
+    title = "Type II noise at well AdobeGW01_BVR, 2022",
+    y = "Depth to Groundwater, Raw (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_TypeIINoise
+```
+
+Type III noise at Well03/ AdobeGW02_BVR (Argonaut Rd)
+```{r}
+p_TypeIIINoise <- ggplot(data = groundwater_updated |> filter(well_id == "003"), aes(x=datetime, y=depth_to_gw, color=well_id)) + 
+  geom_line(color = "#7570b3", size = 0.75) + 
+  scale_x_datetime(date_labels = "%m/%d",
+                   date_breaks = "1 day",
+                   minor_breaks = "1 day",
+                   limits = c(as.POSIXct("2022-03-04 0:00:00", tz="America/Los_Angeles"), as.POSIXct("2022-03-12 0:00:00", tz="America/Los_Angeles"))) +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  scale_y_reverse(limits=c(NA,0))+
+  # scale_y_continuous(limits = c(5, 45), breaks = c(5,10,15,20,25,30,35,40,45)) +
+  labs(
+    title = "Type III noise at well AdobeGW02_BVR, 2022",
+    y = "Depth to Groundwater, Raw (ft)",
+    x = "Date"
+  )  + 
+    theme_minimal() +
+  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "none",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+p_TypeIIINoise
+```
+
+# Integrative Analysis
+
+## Bell Hill: {.tabset}
+
+### GW vs SW
+
+```{r, echo=FALSE}
+bell_hill_hydro_plot <- ggplot(data = ground_water_adobe |> 
+                                 filter(! is.na(gw_elev_1dMA), well_id=="001"), 
+                               aes(x=datetime, y=gw_elev_1dMA, 
+                                   color = "Groundwater - BV EPA (AdobeGW3_BVR)")) + 
+  geom_line(size = 1) +
+  geom_line(data= SW_WSE |> filter(name =="Bell Hill Rd"), aes(x=datetime, y=WSE_1dMA, color = "Surface Water - BV EPA (AdobePT03_BVR)"), size = 1)+
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month",
+                   limits = c(as.POSIXct("2022-02-01 00:00:00"), as.POSIXct("2023-11-15 00:00:00"))) +  
+  scale_color_manual(name = "", values = c("Groundwater - BV EPA (AdobeGW3_BVR)" = "blue", "Surface Water - BV EPA (AdobePT03_BVR)" = "green4")) + 
+  scale_y_continuous(limits=c(1402, 1408)) + 
+  labs(
+    title = "Groundwater vs Surface Water Elevations, Bell Hill Road",
+    y = "Water Surface Elevation (ft NAVD88)",
+    x = "Date"
+  ) + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8, angle = 45, vjust = 0.75),
+        panel.grid.major = element_line(colour = "grey70", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.75, b = 0.25, l = 0, unit = "in"))
+
+bell_hill_hydro_plot
+```
+
+### Comparison of Data from Different Sources
+
+#### Groundwater: BVR record vs Lake County records
+
+```{r}
+plot_gw_comp_bellhill <- ggplot(data = ground_water_adobe |> filter(! is.na(gw_elev_7dMA), well_id=="001"), aes(x=datetime, y=gw_elev_7dMA, color = "BV EPA (Bell Hill Road)")) + 
+  geom_line(size = 1) + 
+  geom_line(data = GW_bellhill_CL_A1, aes(x=Date, y = `GW Elev`, color = "Lake County (A1)"), size = 1) + 
+  geom_line(data = GW_bellhill_CL_J1, aes(x=Date, y = `GW Elev`, color = "Lake County (J1)"), size = 1) + 
+  scale_color_manual(name = "", values = c("BV EPA (Bell Hill Road)" = "deepskyblue3", "Lake County (A1)" = "Red", "Lake County (J1)" = "Orange")) + 
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months",
+                   limits = c(as.POSIXct("2021-10-01 00:00:00"), as.POSIXct("2024-01-30 00:00:00"))) + 
+  labs(x= "Date", y="Groundwater Elevation (ft, NAVD88)", title = "Groundwater Data Comparison Near Bell Hill Road") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8, angle = 45, vjust = 0.75),
+        panel.grid.major = element_line(colour = "grey70", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+plot_gw_comp_bellhill
+```
+
+
+## Soda Bay: {.tabset}
+
+### GW v SW
+```{r, echo=FALSE}
+surf_ground_sodabay <- ggplot(SW_WSE |> filter(name == "Soda Bay Rd"), aes(x=datetime, y=WSE_7dMA, color = "Surface Water - BV EPA (AdobePT01_BVR)")) +
+  geom_line(size = 1) + 
+  geom_line(data = ground_water_adobe |> filter(well_id == "004"),
+            aes(x=datetime, y=gw_elev_7dMA, color = "Groundwater - BV EPA (AdobeGW01_BVR)"),
+            size = 1,
+            ) +
+  #annotate("rect", xmin = as.POSIXct("2023-01-23 12:00:00"), xmax = as.POSIXct("2023-02-27 07:15:00"), ymin = 1310, ymax = 1336, alpha = 0.2) + 
+  #annotate("text", x= as.POSIXct("2023-02-12 12:00:00"), y = 1334, label = "            ") + 
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month",
+                   limits = c(as.POSIXct("2022-09-01 00:00:00"),as.POSIXct("2023-11-13 00:00:00"))) +
+  scale_color_manual(values = c("Surface Water - BV EPA (AdobePT01_BVR)" = "deepskyblue3", "Groundwater - BV EPA (AdobeGW01_BVR)" = "darkolivegreen3")) +
+  scale_y_continuous(limits = c(1310, 1336),
+                     breaks = seq(1310, 1335, 5),
+                     minor_breaks = seq(1310, 1335, 2.5)) +
+  labs(x="Date", 
+       title = "Groundwater vs Surface Water Elevations, Soda Bay Road", 
+       y = "Elevation (ft NAVD 88)",
+       color = "") + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8, angle = 45, vjust = 0.75),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.75, b = 0.25, l = 0, unit = "in")
+  ) 
+
+surf_ground_sodabay
+```
+
+### Comparison of Data from Different Sources
+
+#### Groundwater & Lake Levels: BVR vs Lake County records
+```{r}
+plot_gw_comp_sodabay <- ggplot(data = ground_water_adobe |> filter(! is.na(gw_elev_7dMA), well_id=="004"), aes(x=datetime, y=gw_elev_7dMA, color = "Groundwater - BV EPA (Soda Bay Road)")) + 
+  geom_line(size = 1) + 
+  geom_line(data = GW_sodabay_CL_G2, aes(x=Date, y = `GW Elev`, color = "Groundwater - Lake County (G2)"), size = 1) + 
+  geom_line(data = clearlake_level, aes(x=Date, y = WSE, color = "Clear Lake"), size = 1) + 
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months",
+                   limits = c(as.POSIXct("2021-09-01 00:00:00"),as.POSIXct("2024-01-30 00:00:00"))) + 
+  scale_color_manual(values = c("Groundwater - BV EPA (Soda Bay Road)" = "deepskyblue3", "Groundwater - Lake County (G2)" = "red", "Clear Lake" = "green")) +
+  scale_y_continuous(limits = c(1305, 1340),
+                     breaks = seq(1305, 1340, 5),
+                     minor_breaks = seq(1305, 1340, 2.5)) + 
+  labs(y="Elevation (ft, NAVD88)", x = "Date", title = "Groundwater Levels vs Clear Lake Elevation") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 8, angle = 45, vjust = 0.75),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 9),
+        plot.margin = margin(t = 0.25, r = 0.75, b = 0.25, l = 0, unit = "in")
+  ) 
+
+plot_gw_comp_sodabay
+```
+
+At first glance, trends line up pretty well 
+
+## Kelsey Creek Well 04: {.tabset}
+### GW v SW
+```{r}
+surf_ground_kelsey <- ggplot(SW_kelsey_kelseyville_USGS, aes(x=Datetime, y=WSE, color = "Surface Water - USGS Gage 11449500")) +
+  geom_line(size = 1) +
+  geom_line(data = well04 |> filter(! is.na(depth_adjusted)),
+            aes(x=datetime, y=1498.56 - depth_adjusted, color = "Groundwater - BV EPA (Kelsey Creek Drive)"),
+            size = 1,
+            ) +
+  #annotate("rect", xmin = as.POSIXct("2023-01-23 12:00:00"), xmax = as.POSIXct("2023-02-27 07:15:00"), ymin = 1310, ymax = 1336, alpha = 0.2) +
+  #annotate("text", x= as.POSIXct("2023-02-12 12:00:00"), y = 1334, label = "            ") +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "1 month",
+                   limits = c(as.POSIXct("2022-09-01 00:00:00"),as.POSIXct("2023-12-13 00:00:00"))) +
+  scale_color_manual(values = c("Surface Water - USGS Gage 11449500" = "deepskyblue3", "Groundwater - BV EPA (Kelsey Creek Drive)" = "coral")) +
+  # scale_y_continuous(limits = c(1310, 1336),
+  #                    breaks = seq(1310, 1335, 5),
+  #                    minor_breaks = seq(1310, 1335, 2.5)) +
+  labs(x="Date",
+       title = "Groundwater v Surface Water Elevations, Kelsey Creek Drive",
+       y = "Elevation (ft NAVD 88)",
+       color = "") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 8, angle = 45, vjust = 0.75),
+        panel.grid.major = element_line(colour = "grey60", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0.75, b = 0.25, l = 0, unit = "in")
+  )
+
+surf_ground_kelsey
+```
+
+## Adobe Reservoir Release
+```{r}
+plot <- ggplot(surface_water |> filter(name %in% c("Argonaut Rd", "Soda Bay Rd", "Adobe Reservoir")), aes(x=datetime, y=depth_adjust04, color = name)) + 
+  geom_line(size=1) + 
+  geom_line(data = SW_bellhill_WB, aes(x=Date, y = `Depth (ft)`, color = "Bell Hill Rd"), size=1) + 
+  scale_x_datetime(date_labels = "%m/%d",
+                   date_breaks = "1 day",
+                   limits = c(as.POSIXct("2023-06-06 00:00:00"),as.POSIXct("2023-06-09 12:00:00"))) + 
+  scale_colour_manual(breaks = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd", "Adobe Reservoir"),values = c("#1b9e77", "#d95f02", "#7570b3","#e7298a")) +
+  scale_y_continuous(limits = c(NA, 2)) +
+  labs(x= "Date", y = "Depth (ft)", title="Adobe Creek Response to Adobe Reservoir Releases, 2023") +
+  theme_minimal() +
+  theme(panel.grid.major = element_line(colour = "grey70", size = 0.25),
+        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+        text = element_text(size = 12),
+        plot.title = element_text(hjust=0.5),
+        axis.title = element_text(size = 13),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+        legend.title = element_blank(),
+        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in")
+  )
+
+plot
+```
+
