@@ -90,7 +90,7 @@ ggplot() +
   ggtitle("ADOBE CRK NR FINLEY AT SODA BAY RD, DWR") + 
   ylab('Depth (ft)') + 
   xlab('Date') 
- # labs(caption = "depth adjusted by +5.08 feet per necessary correction through communcation with Lester Grade, DWR")
+# labs(caption = "depth adjusted by +5.08 feet per necessary correction through communcation with Lester Grade, DWR")
 
 ```
 
@@ -361,9 +361,9 @@ ggplot(data = surface_water |> filter(name == "Argonaut Rd"), aes(x=datetime, y=
 **Description of QC**
 
 -   Zero flow oscillations were similar in the new 2024 data from Adobe
-    Reservoir, Highland Springs Reservoir, and Soda Bay Road. For these
-    sites, we will calculate a new zero flow vertical offset for all the
-    data.
+Reservoir, Highland Springs Reservoir, and Soda Bay Road. For these
+sites, we will calculate a new zero flow vertical offset for all the
+data.
 -   Bell Hill Rd
 -   Argonaut Rd: used the same methodology as previous analysis to perform the offset 
 
@@ -493,10 +493,10 @@ ggplotly(bell)
 #### Argonaut Rd
 
 -   high oscillations in low flow; evident where it goes from bad
-    oscillation data to good measurements.
+oscillation data to good measurements.
 
 -   **QC performed:** Cut out high oscillation during low flow and make
-    it zero and use prior season vertical transformations
+it zero and use prior season vertical transformations
 
 ```{r}
 arg <- surface_water |> 
@@ -621,59 +621,13 @@ surface_water <- surface_water |>
 ```
 
 
-```{r eval=FALSE, include=FALSE}
-# THIS IS A TEST to see how automated offsets impacted results 
-surface_water <- surface_water |> 
-  mutate(depth_adjust03 = case_when(
-    # The following numbers are derived from the maximum "zero flow" values across whole record for each transducer
-    name == "Bell Hill Rd" ~ depth_adjust02 - offsets[offsets$name == "Bell Hill Rd", ]$mean,
-    name == "Argonaut Rd" ~ depth_adjust02 - offsets[offsets$name == "Argonaut Rd", ]$mean,
-    name == "Soda Bay Rd" ~ depth_adjust02 - offsets[offsets$name == "Soda Bay Rd", ]$mean,
-    # Following values are based on an offset that will make the lowest oscillations oscillate around zero.
-    name == "Adobe Reservoir" ~ depth_adjust02 - offsets[offsets$name == "Adobe Reservoir", ]$mean,
-    name == "Highland Springs Reservoir" ~ depth_adjust02 - offsets[offsets$name == "Highland Springs Reservoir", ]$mean,
-    T ~ depth_adjust02
-  )) 
-
-# Now look at where there data is hovering around zero 
-vals_to_zero <- surface_water |> 
-  group_by(name) |> 
-  filter(depth_adjust03 < 0.5) |> 
-  slice_max(order_by = depth_adjust03, prop = 0.99) |> 
-  summarise(mean = mean(depth_adjust03))
-
-# scanned the data again and decided the max value seen in the vertically transformed data?
-# I instead used the mean of the 99th percentile 
- surface_water <- surface_water |> 
-   mutate(
-    depth_adjust03 = case_when(
-      name == "Bell Hill Rd" & depth_adjust03 <= vals_to_zero[vals_to_zero$name == "Bell Hill Rd", ]$mean ~ 0,
-      name == "Argonaut Rd" & depth_adjust03 < vals_to_zero[vals_to_zero$name == "Argonaut Rd", ]$mean ~ 0,
-      name == "Soda Bay Rd" & depth_adjust03 <= vals_to_zero[vals_to_zero$name == "Soda Bay Rd", ]$mean ~ 0,
-      name == "Adobe Reservoir" & depth_adjust03 <= vals_to_zero[vals_to_zero$name == "Adobe Reservoir", ]$mean ~ 0,
-      name == "Highland Springs Reservoir" & depth_adjust03 <= vals_to_zero[vals_to_zero$name == "Highland Springs Reservoir", ]$mean ~ 0,
-      T ~ depth_adjust03
-    )) 
-
-surface_water <- surface_water |> 
-  mutate(depth_adjust04 = 
-           case_when(
-             name == "Argonaut Rd" & 
-               datetime > as.POSIXct("2023-08-16 00:00:00", tz="America/Los_Angeles") &
-               datetime < as.POSIXct("2023-12-19 09:15:00", tz="America/Los_Angeles") ~ 
-               0,
-             T ~ depth_adjust03
-           ))
-```
-
-
 #### Plot QC'd sites
 
 ```{r}
 all_sites_with_qc <- surface_water |> 
   ggplot() +
   geom_line(aes(datetime, y = depth_adjust04, color = "post-QC")) +
-    geom_line(aes(datetime, y = depth_ft, color = "pre-QC")) +
+  geom_line(aes(datetime, y = depth_ft, color = "pre-QC")) +
   theme_minimal() +
   facet_wrap(~name, ncol = 2) + 
   theme(strip.text = element_text(size = 10),
@@ -694,7 +648,12 @@ all_sites_qc <- surface_water |>
   theme(strip.text = element_text(size = 10),
         legend.position = "bottom") 
 
-#ggsave(filename = 'all_sites_qcd.png', here::here("analysis", "surface_water", "2024_figs", "all_sites_qcd.png"))
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "all_sites_qcd.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
 
 #ggplotly(all_sites_qc)
 #all_sites_qc
@@ -707,32 +666,51 @@ all_sites_qc <- surface_water |>
 -   Not modifying BV EPA data because this doesn't necessarily indicate an issue with the datum or other
 
 ```{r}
-ac4_plot <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), aes(x=datetime, y=depth_adjust04, color = "BVR EPA")) + 
+ac4_plot <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"), 
+                   aes(x = datetime, y = depth_adjust04, color = "BVR EPA")) + 
   geom_line() + 
-  geom_line(data = SW_bellhill_WB, aes(x=Date, y = `Depth (ft)`, color = "Water Board")) + 
+  geom_line(data = SW_bellhill_WB, aes(x = Date, y = `Depth (ft)`, color = "Water Board")) + 
   geom_line(data = adobe_ac4_2024, aes(x = date_time, y = depth_ft, color = "Water Board 2024")) +
-  scale_color_manual(name = "", values = c("BVR EPA" = "#1B9E77", "Water Board" = "darkred", "Water Board 2024" = "darkblue")) + 
-  #scale_y_continuous(limits = c(-1.75, 6.5), breaks = c(-1, 0, 1, 2, 3, 4, 5, 6)) +
-  scale_x_datetime(date_labels = "%m/%d",
-                   date_breaks = "2 weeks",
-                   minor_breaks = "1 week",
-                   limits = c(as.POSIXct("2023-02-15 00:00:00", tz="America/Los_Angeles"), as.POSIXct("2024-12-31 00:00:00", tz="America/Los_Angeles"))
+  scale_color_manual(
+    name = "", 
+    values = c("BVR EPA" = "#1B9E77", "Water Board" = "darkred", "Water Board 2024" = "darkblue")
   ) + 
-  labs(x = "Date", y = "Depth (ft)", title = "Comparison of BVR EPA and Water Board Transducer \n  Measurements at Bell Hill Rd, 2023 + 2024") +
+  scale_x_datetime(
+    date_labels = "%b %Y",       
+    date_breaks = "1 month",     
+    minor_breaks = "2 weeks",
+    limits = c(
+      as.POSIXct("2023-02-15 00:00:00", tz = "America/Los_Angeles"), 
+      as.POSIXct("2024-12-31 00:00:00", tz = "America/Los_Angeles")
+    )
+  ) + 
+  labs(
+    x = "Date", 
+    y = "Depth (ft)", 
+    title = "Comparison of BVR EPA and Water Board Transducer \nMeasurements at Bell Hill Rd, 2023 + 2024"
+  ) +
   theme_minimal() +
-  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
-        panel.grid.major = element_line(colour = "grey60", size = 0.25),
-        panel.grid.minor = element_line(colour = "grey80", size = 0.2),
-        text = element_text(size = 12),
-        plot.title = element_text(hjust=0.5),
-        axis.title = element_text(size = 13),
-        legend.position = "bottom",
-        legend.direction = "horizontal",
-        legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
-        legend.title = element_blank(),
-        plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+  theme(
+    axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+    panel.grid.major = element_line(colour = "grey60", size = 0.25),
+    panel.grid.minor = element_line(colour = "grey80", size = 0.2),
+    text = element_text(size = 12),
+    plot.title = element_text(hjust = 0.5),
+    axis.title = element_text(size = 13),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
+    legend.title = element_blank(),
+    plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in")
+  )
 
-ggplotly(ac4_plot)
+
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "ac4_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
 
 ```
 
@@ -751,17 +729,18 @@ ggplot(data = surface_water |>
        aes(x=datetime, y=depth_adjust04, color = "BVR EPA")) + 
   geom_line() + 
   geom_line(data = acf_depth_adj, aes(x=datetime, y = depth_ft, color = "ACF (DWR)")) + 
- # geom_line(data = acf_depth_adj, aes(x=datetime, y = parameter_value, color = "ACF (DWR) - uncorrected")) + 
+  # geom_line(data = acf_depth_adj, aes(x=datetime, y = parameter_value, color = "ACF (DWR) - uncorrected")) + 
   scale_color_manual(name = "", values = c("BVR EPA" = "#1B9E77", "ACF (DWR)" = "darkred")) + 
   #scale_y_continuous(limits = c(-1.75, 6.5), breaks = c(-1, 0, 1, 2, 3, 4, 5, 6)) +
-  scale_x_datetime(date_labels = "%m/%d",
-                   date_breaks = "2 weeks",
-                   minor_breaks = "1 week",
-                   limits = c(as.POSIXct("2024-01-01 00:00:00", tz="America/Los_Angeles"), as.POSIXct("2024-12-31 00:00:00", tz="America/Los_Angeles"))
+  scale_x_datetime(
+    date_labels = "%b %Y",       
+    date_breaks = "1 month",     
+    minor_breaks = "2 weeks",
+    limits = c(as.POSIXct("2024-01-01 00:00:00", tz="America/Los_Angeles"), as.POSIXct("2024-12-31 00:00:00", tz="America/Los_Angeles"))
   ) + 
   labs(x = "Date", y = "Depth (ft)", title = "Comparison of BVR EPA and DWR (ACF) \n  Measurements at Soda Bay Rd") +
   theme_minimal() +
-  theme(axis.text.x = element_text(size = 10, angle = 0, vjust = 0),
+  theme(axis.text.x = element_text(size = 10, angle = 45, vjust = 0),
         panel.grid.major = element_line(colour = "grey60", size = 0.25),
         panel.grid.minor = element_line(colour = "grey80", size = 0.2),
         text = element_text(size = 12),
@@ -772,6 +751,13 @@ ggplot(data = surface_water |>
         legend.margin = margin(t = 0, r = 0, b = 0, l = 0, unit = "in"),
         legend.title = element_blank(),
         plot.margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "in"))
+
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "soda_bay_ACF_comparison_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
 
 
 ```
@@ -812,7 +798,9 @@ surface_water <- surface_water |>
     depth_01dMA = zoo::rollmean(depth_adjust04, 96, fill=NA)
   )
 
-ggplot(data = surface_water, aes(x = datetime, y = depth_07dMA, color = name)) + 
+# STREAM GAGES 
+ggplot(data = surface_water |> 
+         filter(name %in% c("Soda Bay Rd", "Bell Hill Rd", "Argonaut Rd")), aes(x = datetime, y = depth_07dMA, color = name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -820,13 +808,14 @@ ggplot(data = surface_water, aes(x = datetime, y = depth_07dMA, color = name)) +
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "7-Day Moving Average Stage",
+    title = "7-Day Moving Average Stage for Stream Gages",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
   )
 
-ggplot(data = surface_water, aes(x = datetime, y = depth_01dMA, color = name)) + 
+ggplot(data = surface_water |> 
+         filter(name %in% c("Soda Bay Rd", "Bell Hill Rd", "Argonaut Rd")), aes(x = datetime, y = depth_01dMA, color = name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -834,7 +823,7 @@ ggplot(data = surface_water, aes(x = datetime, y = depth_01dMA, color = name)) +
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "1-Day (24 hour) Moving Average Stage",
+    title = "1-Day (24 hour) Moving Average Stage for Stream Gages",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
@@ -926,7 +915,7 @@ spawning_months <- surface_water |>
     WY = ifelse(month %in% c("10","11","12"), as.numeric(year)+1, as.numeric(year))
   ) |> 
   mutate(month = factor(format(datetime, "%b"), levels = c("Oct", "Nov", "Dec","Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep")),
-        name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))) |> 
+         name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))) |> 
   group_by(name, month) |> 
   summarize(
     mean = mean(depth_adjust04, na.rm = T)
@@ -952,7 +941,7 @@ spawning_months_by_WY <- surface_water |>
     WY = ifelse(month %in% c("10","11","12"), as.numeric(year)+1, as.numeric(year))
   ) |> 
   mutate(month = factor(format(datetime, "%b"), levels = c("Oct", "Nov", "Dec","Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep")),
-        name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))) |> 
+         name = factor(name, levels = c("Bell Hill Rd", "Argonaut Rd", "Soda Bay Rd"))) |> 
   group_by(WY, name, month) |> 
   summarize(
     mean = mean(depth_adjust04, na.rm = T)
