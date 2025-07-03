@@ -814,6 +814,13 @@ ggplot(data = surface_water |>
     x = "Date"
   )
 
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "stream_gages_7_day_avg_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
 ggplot(data = surface_water |> 
          filter(name %in% c("Soda Bay Rd", "Bell Hill Rd", "Argonaut Rd")), aes(x = datetime, y = depth_01dMA, color = name)) + 
   geom_line() + 
@@ -828,6 +835,61 @@ ggplot(data = surface_water |>
     color = "Gage Location",
     x = "Date"
   )
+
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "stream_gages_1_day_avg_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+```
+
+```{r}
+# RESERVOIRS 
+ggplot(data = surface_water |> 
+         filter(name %in% c("Highland Springs Reservoir", "Adobe Reservoir")), aes(x = datetime, y = depth_07dMA, color = name)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "7-Day Moving Average Stage for Reservoir Gages",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  )
+
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "reservoir_gages_7_day_avg_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
+ggplot(data = surface_water |> 
+         filter(name %in% c("Highland Springs Reservoir", "Adobe Reservoir")), aes(x = datetime, y = depth_01dMA, color = name)) + 
+  geom_line() + 
+  theme_light() +
+  scale_color_brewer(type = 'qual', palette = 'Dark2') +
+  scale_x_datetime(date_labels = "%b '%y",
+                   date_breaks = "2 months") +
+  theme(axis.text.x = element_text(size = 7, angle = 45)) +
+  labs(
+    title = "1-Day (24 hour) Moving Average Stage for Reservoir Gages",
+    y = "Depth (ft)",
+    color = "Gage Location",
+    x = "Date"
+  )
+
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "reservoir_gages_1_day_avg_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
 ```
 
 ```{r}
@@ -896,6 +958,14 @@ ggplot(data = sw_wse, aes(x = datetime, y = WSE, color = name)) +
     x = "Date"
   )
 
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "water_surface_elevations_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
+
 ```
 
 #### Monthly Average Summary
@@ -927,6 +997,14 @@ ggplot(spawning_months, aes(x = month, y = mean, fill = name)) +
   theme_light() +
   scale_fill_brewer(type = 'qual', palette = 'Dark2') +
   labs(x = "Month", y = "Mean Stage on Adobe Creek", fill = "Gage Location", title = "Mean Monthly Stage at 3 Adobe Creek Stage Gaging Sites \n2019-2024")
+
+ggsave(
+  filename = here::here("analysis", "surface_water", "2024_figs", "mean_monthly_stage_plot.png"),
+  width = 8,
+  height = 6,
+  dpi = 300
+)
+
 
 ```
 
