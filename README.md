@@ -14,16 +14,18 @@ To update the aggregated surface water file `data/surface_water/surface_water_da
 
 The `analysis/surface_water/surface_water_data_qc.Rmd` will pull the aggregated surface water data and run the analysis performed by Cameron Tenner to QC the data and build figures
 
-All figures will be located here: `data/surface_water/figures`
+All figures will be located here: `analysis/surface_water/2024_figs`
+
+### Final Datasets
 
 All final datasets will be located here: `data/surface_water/`
 
--   Final surface water dataset here: <https://github.com/FlowWest/bv_clear_lake_hydrology/blob/main/data/surface_water/cleaned_surface_water_data_052025.zip>
+Final surface water dataset here: <https://github.com/FlowWest/bv_clear_lake_hydrology/blob/main/data/surface_water/cleaned_surface_water_data_052025.zip>
 
 *Data dictionary for final surface water dataset*
 
 |                 |                                                                                                                  |
-|-----------------|------------------------------------------------------------------------------------------------------------------|
+|-----------------|-------------------------------------------------------|
 | **Column Name** | **Description**                                                                                                  |
 | name            | Surface water gage location name                                                                                 |
 | datetime        | The date and time of measurement, in the format YYYY-MM-DD HH:MM:SS; measurements taken in 15-minute increments  |
@@ -46,4 +48,32 @@ To update the aggregated groundwater data `data/groundwater/groundwater_merged.r
 
 ### Analyzing the groundwater data
 
-TODO
+The `analysis/groundwater/groundwatwer_data_qc.Rmd` will pull the aggregated groundwater data and run the QC analysis; this builds off of 2023 analysis developed by Cameron Tenner
+
+### Final Datasets
+
+All final datasets will be located here: `data/groundwater/`
+
+All final figures are here: `analysis/groundwater/2024_figs`
+
+Final groundwater dataset located here: <https://github.com/FlowWest/bv_clear_lake_hydrology/blob/main/data/groundwater/cleaned_2024_big_valley_depth_to_groundwater_data.zip>
+
+*Data dictionary for final groundwater data*
+
+|                          |                                                                                                                  |
+|------------------|------------------------------------------------------|
+| **Column Name**          | **Description**                                                                                                  |
+| well_name                | Groundwater well name                                                                                            |
+| well_id                  | Groundwater well ID                                                                                              |
+| datetime                 | The date and time of measurement, in the format YYYY-MM-DD HH:MM:SS; measurements taken in 15-minute increments  |
+| temperature_f            | The temperature (f) at the time of measurement                                                                   |
+| battery_voltage          | Battery voltage                                                                                                  |
+| signal_strength          | Signal strength                                                                                                  |
+| errors                   | Errors - “0000”, “0001”, “0020”                                                                                  |
+| depth_to_gw_ft_raw       | Raw depth to groundwater data (feet)                                                                             |
+| depth_to_gw_ft \_qc      | QC’d depth to groundwater data (feet)                                                                            |
+| depth_1hMM               | QC’d depth to groundwater, 1-hour moving median (feet)                                                           |
+| depth_to_gw_cleaned_7dMA | QC’d depth to groundwater, 7-day moving average (feet)                                                           |
+| depth_to_gw_cleaned_1dMA | QC’d depth to groundwater, 1-day moving average (feet)                                                           |
+
+![](groundwater_schematic.png)
