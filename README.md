@@ -12,7 +12,7 @@ To update the aggregated surface water file `data/surface_water/surface_water_da
 
 ### Analyzing the surface water data
 
-The `analysis/surface_water/surface_water_data_qc.Rmd` will pull the aggregated surface water data and run the analysis performed by Cameron Tenner to QC the data and build figures
+The `analysis/surface_water/surface_water_data_qc.Rmd` will pull the aggregated surface water data and run the QC analysis; this builds off of 2023 analysis developed by Cameron Tenner
 
 All figures will be located here: `analysis/surface_water/2024_figs`
 
