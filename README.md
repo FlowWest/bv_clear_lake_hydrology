@@ -25,7 +25,7 @@ Final surface water dataset here: <https://github.com/FlowWest/bv_clear_lake_hyd
 *Data dictionary for final surface water dataset*
 
 |                 |                                                                                                                  |
-|-----------------|-------------------------------------------------------|
+|-----------------|------------------------------------------------------------------------------------------------------------------|
 | **Column Name** | **Description**                                                                                                  |
 | name            | Surface water gage location name                                                                                 |
 | datetime        | The date and time of measurement, in the format YYYY-MM-DD HH:MM:SS; measurements taken in 15-minute increments  |
@@ -61,7 +61,7 @@ Final groundwater dataset located here: <https://github.com/FlowWest/bv_clear_la
 *Data dictionary for final groundwater data*
 
 |                          |                                                                                                                  |
-|------------------|------------------------------------------------------|
+|--------------------------|------------------------------------------------------------------------------------------------------------------|
 | **Column Name**          | **Description**                                                                                                  |
 | well_name                | Groundwater well name                                                                                            |
 | well_id                  | Groundwater well ID                                                                                              |
