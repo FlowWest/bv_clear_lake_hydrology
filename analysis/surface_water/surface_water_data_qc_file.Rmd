@@ -56,6 +56,8 @@ SW_bellhill_WB <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'wat
 SW_kelsey_kelseyville_USGS <- read_csv(here::here('data-raw', 'surface_water', 'kelsey_kelseyville_usgs_stage_20240201.csv'))  |>
   mutate(Datetime = as.POSIXct(Datetime, format = "%m/%d/%Y %H:%M", tz = "America/Los_Angeles"),
          WSE = Stage + 1475.44)
+
+
 ```
 #### 2024 data 
 ```{r}
@@ -761,6 +763,8 @@ ggsave(
 
 
 ```
+
+### Save cleaned datasets
 
 ```{r}
 saveRDS(surface_water, here::here("data", "surface_water", "cleaned_surface_water.RDS"))

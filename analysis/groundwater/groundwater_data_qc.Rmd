@@ -874,6 +874,27 @@ ggsave(
 
 ### Saving Out Cleaned Groundwater Data 
 ```{r}
+
+tidy_groundwater_data <- ground_water_processed |> 
+  mutate(
+    well_name = case_when(
+      well_id == "001" ~ "AdobeGW03_BVR",
+      well_id == "002" ~ "KelseyGW02_BVR",
+      well_id == "003" ~ "AdobeGW02_BVR",
+      well_id == "004" ~ "AdobeGW01_BVR",
+      well_id == "005" ~ "KelseyGW01_BVR"
+    )) |> 
+  rename(depth_to_gw_ft_raw = depth_to_gw, 
+         temperature_f = temperature, 
+         depth_to_gw_ft_qc = depth_adjusted, 
+         depth_to_gw_cleaned_7dMA = depth_07dMA,
+         depth_to_gw_cleaned_1dMA = depth_01dMA) |> 
+  select(well_name, well_id, datetime, temperature_f, battery_voltage, signal_strength, errors, everything()) |> 
+  glimpse()
+
+write_csv(tidy_groundwater_data, 
+          here::here("data", "groundwater", "cleaned_2024_big_valley_depth_to_groundwater_data.csv"))
+
 BigValleyWellSensors_BVR_DepthToGW_Cleaned <- ground_water_processed |> 
   mutate(
     well_id = case_when(
@@ -891,8 +912,9 @@ BigValleyWellSensors_BVR_DepthToGW_Cleaned <- ground_water_processed |>
     datetime_UTC = datetime
   )
 
-write_csv(BigValleyWellSensors_BVR_DepthToGW_Cleaned, 
-          here::here("data", "groundwater", "cleaned_2024_big_valley_depth_to_groundwater_data.csv"))
+  
+
+
 
 #write_csv(BigValleyWellSensors_BVR_DepthToGW_Cleaned, "../Groundwater/Groundwater_Sensors_BVR/data/cleaned_deliverable/BigValleyWellSensors_BVR_DepthToGW_Cleaned.csv")
 ```
