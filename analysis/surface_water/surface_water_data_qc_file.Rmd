@@ -36,7 +36,10 @@ The data have been corrected using barometric pressure.
 ### Load in BVR data
 
 ```{r}
-surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS'))
+surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS')) |> 
+  mutate(name = case_when(name == "Adobe Reservoir" ~ "Downstream of Adobe Reservoir",
+                          name == "Highland Springs Reservoir" ~ "Downstream of Highland Springs Reservoir", 
+                          .default = as.character(name)))
 
 stage_flow <- readxl::read_xlsx(here::here('data-raw', 'surface_water', 'Flow_vs_Depth_Table.xlsx'), sheet = "Data") 
 ```
@@ -372,7 +375,10 @@ data.
 ```{r}
 # this is all the new data: 
 new_surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS')) |> 
-  filter(datetime > '2023-11-13')
+  filter(datetime > '2023-11-13') |> 
+   mutate(name = case_when(name == "Adobe Reservoir" ~ "Downstream of Adobe Reservoir",
+                          name == "Highland Springs Reservoir" ~ "Downstream of Highland Springs Reservoir", 
+                          .default = as.character(name)))
 
 ```
 
@@ -417,7 +423,7 @@ ggplot(new_data_and_previous_data, aes(datetime, y = depth_ft)) +
 
 ```{r}
 adobe <- new_surface_water |> 
-  filter(name == "Adobe Reservoir") |> 
+  filter(name == "Downstream of Adobe Reservoir") |> 
   ggplot(aes(datetime, y = depth_ft)) +
   geom_line() +
   theme_minimal() +
@@ -439,7 +445,7 @@ ggplotly(adobe)
 
 ```{r}
 highland <- new_data_and_previous_data |> 
-  filter(name == "Highland Springs Reservoir") |> 
+  filter(name == "Downstream of Highland Springs Reservoir") |> 
   ggplot(aes(datetime, y = depth_ft)) +
   geom_line(aes(color = as.factor(iteration))) +
   theme_minimal() +
@@ -518,7 +524,10 @@ ggplotly(arg)
 
 ```{r}
 # all data 
-surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS')) 
+surface_water <- readRDS(here::here('data', 'surface_water', 'surface_water_data_aggregated.RDS')) |> 
+   mutate(name = case_when(name == "Adobe Reservoir" ~ "Downstream of Adobe Reservoir",
+                          name == "Highland Springs Reservoir" ~ "Downstream of Highland Springs Reservoir", 
+                          .default = as.character(name)))
 ```
 
 ```{r}
@@ -574,9 +583,9 @@ argonaut_offset_updated <- mean((surface_water |> filter(name == "Argonaut Rd"))
 
 sodabay_offset_updated <- mean((surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02[(surface_water |> filter(name == "Soda Bay Rd"))$depth_adjust02 <= 0.087], na.rm = T)
 
-adoberes_offset_updated <- mean((surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Adobe Reservoir"))$depth_adjust02 <= 0.059], na.rm = T)
+adoberes_offset_updated <- mean((surface_water |> filter(name == "Downstream of Adobe Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Downstream of Adobe Reservoir"))$depth_adjust02 <= 0.059], na.rm = T)
 
-highlandspringsres_offset_updated <- mean((surface_water |> filter(name == "Highland Springs Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Highland Springs Reservoir"))$depth_adjust02 <= -0.086], na.rm = T)
+highlandspringsres_offset_updated <- mean((surface_water |> filter(name == "Downstream of Highland Springs Reservoir"))$depth_adjust02[(surface_water |> filter(name == "Downstream of Highland Springs Reservoir"))$depth_adjust02 <= -0.086], na.rm = T)
 ```
 
 Compare offsets
@@ -597,8 +606,8 @@ surface_water <- surface_water |>
     name == "Argonaut Rd" ~ depth_adjust02 - argonaut_offset_updated,
     name == "Soda Bay Rd" ~ depth_adjust02 - sodabay_offset_updated,
     # Following values are based on an offset that will make the lowest oscillations oscillate around zero.
-    name == "Adobe Reservoir" ~ depth_adjust02 - adoberes_offset_updated,
-    name == "Highland Springs Reservoir" ~ depth_adjust02 - highlandspringsres_offset_updated,
+    name == "Downstream of Adobe Reservoir" ~ depth_adjust02 - adoberes_offset_updated,
+    name == "Downstream of Highland Springs Reservoir" ~ depth_adjust02 - highlandspringsres_offset_updated,
     T ~ depth_adjust02
   )) |> 
   mutate(
@@ -606,8 +615,8 @@ surface_water <- surface_water |>
       name == "Bell Hill Rd" & depth_adjust03 <= 0.0759 ~ 0,
       name == "Argonaut Rd" & depth_adjust03 < 0.0768 ~ 0,
       name == "Soda Bay Rd" & depth_adjust03 <= 0.0753 ~ 0,
-      name == "Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
-      name == "Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
+      name == "Downstream of Adobe Reservoir" & depth_adjust03 <= 0.063 ~ 0,
+      name == "Downstream of Highland Springs Reservoir" & depth_adjust03 <= 0.048 ~0,
       T ~ depth_adjust03
     )) 
 
@@ -672,10 +681,10 @@ ac4_plot <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"),
                    aes(x = datetime, y = depth_adjust04, color = "BVR EPA")) + 
   geom_line() + 
   geom_line(data = SW_bellhill_WB, aes(x = Date, y = `Depth (ft)`, color = "Water Board")) + 
-  geom_line(data = adobe_ac4_2024, aes(x = date_time, y = depth_ft, color = "Water Board 2024")) +
+  geom_line(data = adobe_ac4_2024, aes(x = date_time, y = depth_ft, color = "Water Board")) +
   scale_color_manual(
     name = "", 
-    values = c("BVR EPA" = "#1B9E77", "Water Board" = "darkred", "Water Board 2024" = "darkblue")
+    values = c("BVR EPA" = "#1B9E77", "Water Board" = "darkblue")
   ) + 
   scale_x_datetime(
     date_labels = "%b %Y",       
@@ -689,7 +698,7 @@ ac4_plot <- ggplot(data = surface_water |> filter(name == "Bell Hill Rd"),
   labs(
     x = "Date", 
     y = "Depth (ft)", 
-    title = "Comparison of BVR EPA and Water Board Transducer \nMeasurements at Bell Hill Rd, 2023 + 2024"
+    title = "Comparison of BVR EPA and Water Board Transducer \nMeasurements at Bell Hill Rd"
   ) +
   theme_minimal() +
   theme(
@@ -851,7 +860,7 @@ ggsave(
 ```{r}
 # RESERVOIRS 
 ggplot(data = surface_water |> 
-         filter(name %in% c("Highland Springs Reservoir", "Adobe Reservoir")), aes(x = datetime, y = depth_07dMA, color = name)) + 
+         filter(name %in% c("Downstream of Highland Springs Reservoir", "Downstream of Adobe Reservoir")), aes(x = datetime, y = depth_07dMA, color = name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -859,7 +868,7 @@ ggplot(data = surface_water |>
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "7-Day Moving Average Stage for Reservoir Gages",
+    title = "7-Day Moving Average Stage for Gages Downstream of Reservoirs",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
@@ -873,7 +882,7 @@ ggsave(
 )
 
 ggplot(data = surface_water |> 
-         filter(name %in% c("Highland Springs Reservoir", "Adobe Reservoir")), aes(x = datetime, y = depth_01dMA, color = name)) + 
+         filter(name %in% c("Downstream of Highland Springs Reservoir", "Downstream of Adobe Reservoir")), aes(x = datetime, y = depth_01dMA, color = name)) + 
   geom_line() + 
   theme_light() +
   scale_color_brewer(type = 'qual', palette = 'Dark2') +
@@ -881,7 +890,7 @@ ggplot(data = surface_water |>
                    date_breaks = "2 months") +
   theme(axis.text.x = element_text(size = 7, angle = 45)) +
   labs(
-    title = "1-Day (24 hour) Moving Average Stage for Reservoir Gages",
+    title = "1-Day (24 hour) Moving Average Stage for Gages Downstream of Reservoirs",
     y = "Depth (ft)",
     color = "Gage Location",
     x = "Date"
@@ -904,8 +913,8 @@ AdobeCreekTransducers_BVR_Depth_Cleaned <- surface_water |>
       name == "Bell Hill Rd" ~ "AdobePT03_BVR",
       name == "Argonaut Rd" ~ "AdobePT02_BVR",
       name == "Soda Bay Rd" ~ "AdobePT01_BVR",
-      name == "Adobe Reservoir" ~ "AdobePT05_BVR",
-      name == "Highland Springs Reservoir" ~ "AdobePT04_BVR"
+      name == "Downstream of Adobe Reservoir" ~ "AdobePT05_BVR",
+      name == "Downstream of Highland Springs Reservoir" ~ "AdobePT04_BVR"
     )
   ) |> 
   select(-c(depth_adjust, depth_adjust02, depth_adjust03)) %>%
@@ -937,8 +946,8 @@ sw_wse <- surface_water |>
     sensor_elev = case_when(
       name == "Argonaut Rd" ~ 1350.318,
       name == "Soda Bay Rd" ~ 1329.229,
-      name == "Adobe Reservoir" ~ 1420.6,
-      name == "Highland Springs Reservoir" ~ 1422.9,
+      name == "Downstream of Adobe Reservoir" ~ 1420.6,
+      name == "Downstream of Highland Springs Reservoir" ~ 1422.9,
       T ~ 1402.281
     ),
     WSE = sensor_elev + depth_adjust04,
